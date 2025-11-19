@@ -1,0 +1,96 @@
+############################
+# GLOBAL IGNORE
+############################
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+############################
+# VS CODE
+############################
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+############################
+# FLUTTER / DART
+############################
+# Build outputs
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+coverage/
+doc/api/
+
+# Generated files
+*.lock
+*.iml
+
+# Flutter tool & environment
+.flutter-*
+android/.gradle
+android/local.properties
+android/app/key.properties
+android/key.keystore
+
+# iOS
+ios/Flutter/.last_build_id
+ios/Pods/
+ios/build/
+ios/.generated/
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Web
+web/flutter.js.map
+
+############################
+# C# / .NET / RIDER
+############################
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
+[Aa]rtifacts/
+[Bb]uild/
+[Bb]uilds/
+*.user
+*.suo
+*.dotCover
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuget
+packages/
+
+# Rider
+.idea/
+*.DotSettings.user
+
+# Logs
+*.log
+
+# ASP.NET Core files
+wwwroot/dist/
+wwwroot/*.map
+
+############################
+# OPTIONAL (uncomment if needed)
+############################
+# Ignore environment files (for secrets)
+# *.env
+# *.env.*
+
+# Ignore database files
+# *.db
+# *.sqlite
+# *.mdf
