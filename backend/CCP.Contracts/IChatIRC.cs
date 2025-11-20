@@ -1,5 +1,6 @@
 ﻿namespace CCP.Contracts;
 
-public class ChatMessage
+public interface IChatIRC
 {
+    
 }
