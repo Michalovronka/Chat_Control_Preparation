@@ -42,7 +42,7 @@ class GlassMessageBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: isMe
-                      ? const Color.fromARGB(255, 0, 255, 170).withOpacity(0.5)
+                      ? const Color.fromARGB(255, 0, 255, 170)
                       : Colors.white.withOpacity(0.2),
                   width: 1.5,
                 ),
@@ -56,7 +56,7 @@ class GlassMessageBubble extends StatelessWidget {
                       fontFamily: 'Jura',
                       fontWeight: FontWeight.bold,
                       color: isMe
-                          ? const Color.fromARGB(255, 0, 255, 170).withOpacity(0.5)
+                          ? const Color.fromARGB(255, 0, 255, 170)
                           : const Color.fromARGB(255, 255, 255, 255),
                       fontSize: 16,
                     ),

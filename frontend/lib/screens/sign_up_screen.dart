@@ -153,11 +153,7 @@ class _SignUpScreenState
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          Colors
-                              .blueAccent
-                              .withOpacity(
-                                0.4,
-                              ),
+                          const Color.fromARGB(255, 0, 255, 170),
                       shape: RoundedRectangleBorder(
                         borderRadius:
                             BorderRadius.circular(
@@ -177,8 +173,7 @@ class _SignUpScreenState
                       style: TextStyle(
                         fontFamily:
                             'Jura',
-                        color: Colors
-                            .white,
+                        color: const Color.fromARGB(255, 0, 0, 0),
                         fontSize: 18,
                       ),
                     ),
