@@ -1,19 +1,10 @@
 ﻿namespace CCP.Data;
 
-public interface IRepository<T>
+public interface IRepository<T> where T : class
 {
     T GetById(Guid id);
     T[] GetAll();
-    void Add(T entity);
-    void Update(T entity);
-    void Remove(Guid id);
-
-    public class User
-    {
-        public string Username { get; set; }
-    }
-    public class Iuser
-    {
-        public string Username { get; set; }
-    }
+    T Add(T entity);
+    T Update(T entity);
+    T Remove(Guid id);
 }
