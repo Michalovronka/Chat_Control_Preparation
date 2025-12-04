@@ -68,7 +68,9 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Center(
             child: IconButton(
               icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.pop(context);
+              },
             ),
           ),
         ),
