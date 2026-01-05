@@ -7,11 +7,11 @@ class GlassMessageBubble extends StatelessWidget {
   final bool isMe;
 
   const GlassMessageBubble({
-    Key? key,
+    super.key,
     required this.sender,
     required this.content,
     required this.isMe,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
