@@ -4,6 +4,8 @@ import 'chat_screen.dart';
 
 class ConnectScreen
     extends StatefulWidget {
+  const ConnectScreen({super.key});
+
   @override
   _ConnectScreenState createState() =>
       _ConnectScreenState();
@@ -14,7 +16,7 @@ class _ConnectScreenState
   final TextEditingController
   _codeController =
       TextEditingController();
-  String _currentUser =
+  final String _currentUser =
       "user#09875557876"; // Příklad aktuálně přihlášeného uživatele
 
   @override

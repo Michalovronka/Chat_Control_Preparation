@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../widgets/glass_message_bubble.dart';
+import 'chat_overview_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   @override
@@ -12,23 +15,32 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, dynamic>> _messages = [
     {
       "sender": "user#5684598765",
-      "content":
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed leo dui, sollicitudin a mi vitae, sollicitudin luctus ercu.",
+      "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
       "isMe": false,
     },
     {
       "sender": "user#09875557876 (you)",
-      "content":
-          "Etiam vel mauris eget scelerisque condimentum. Aenean id urna eget magna interdum laoreet.",
+      "content": "Etiam vel mauris eget scelerisque condimentum.",
       "isMe": true,
     },
-    {
-      "sender": "user#8655755443",
-      "content":
-          "Donec ut suscipit massa. Cras ultrices tellus in ex aliquam viverra. Vestibulum consequat risus sed.",
-      "isMe": false,
-    },
   ];
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _messages.add({
+          "sender": "user#09875557876 (you)",
+          "content": "",
+          "isMe": true,
+          "imagePath": pickedFile.path,
+        });
+      });
+      _scrollToBottom();
+    }
+  }
 
   void _sendMessage() {
     if (_messageController.text.isEmpty) return;
@@ -40,6 +52,10 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     });
     _messageController.clear();
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollController.animateTo(
         _scrollController.position.minScrollExtent,
@@ -56,54 +72,58 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.black.withOpacity(0.2),
-        elevation: 0,
-        leadingWidth: 60,
-        leading: Container(
-          margin: EdgeInsets.only(left: 16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: IconButton(
-              icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
-              onPressed: () {
-                Navigator.pop(context);
-              },
-            ),
+  backgroundColor: Colors.black.withOpacity(0.2),
+  elevation: 0,
+  leading: Container(
+    margin: EdgeInsets.only(left: 16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.1),
+      shape: BoxShape.circle,
+    ),
+    child: IconButton(
+      icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+      onPressed: () {
+        Navigator.pop(context);
+      },
+    ),
+  ),
+  title: GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatOverviewScreen(chatName: "Chat No1"),
+        ),
+      );
+    },
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Chat No1",
+          style: TextStyle(
+            fontFamily: 'Jura',
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 20,
+            fontWeight: FontWeight.normal,
           ),
         ),
-        title: Container(
-          margin: EdgeInsets.only(left: 8),
-          child: Row(
-            children: [
-              Text(
-                "název chatu",
-                style: TextStyle(
-                  fontFamily: 'Jura',
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-              SizedBox(width: 8),
-              Text(
-                "#898895(id)",
-                style: TextStyle(
-                  fontFamily: 'Jura',
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
-            ],
+        Text(
+          "#31161213",
+          style: TextStyle(
+            fontFamily: 'Jura',
+            color: Colors.white70,
+            fontSize: 12,
           ),
         ),
-      ),
+      ],
+    ),
+  ),
+),
+
 
       body: Stack(
         children: [
-          //POZADÍ
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -120,43 +140,43 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ),
+
           Container(color: Colors.black.withOpacity(0.2)),
+
           Positioned.fill(
             child: ListView.builder(
               reverse: true,
               controller: _scrollController,
-              padding: EdgeInsets.only(bottom: 100),
+              padding: EdgeInsets.only(bottom: 90),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[_messages.length - 1 - index];
-                return GlassMessageBubble(
-                  sender: message["sender"],
-                  content: message["content"],
-                  isMe: message["isMe"],
-                );
+                return _buildMessageBubble(message);
               },
             ),
           ),
+
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: ClipRRect(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
-                  color: Colors.black.withOpacity(0.2),
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  color: Colors.black.withOpacity(0.3),
                   child: Row(
                     children: [
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(20),
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: Colors.white.withOpacity(0.2),
                             ),
@@ -166,51 +186,45 @@ class _ChatScreenState extends State<ChatScreen> {
                             style: TextStyle(
                               fontFamily: 'Jura',
                               color: Colors.white,
-                              fontSize: 18, // Větší font
+                              fontSize: 18,
                             ),
                             decoration: InputDecoration(
                               hintText: "Napiš zprávu...",
                               hintStyle: TextStyle(
                                 fontFamily: 'Jura',
                                 color: Colors.white70,
-                                fontSize: 18, // Větší font
+                                fontSize: 18,
                               ),
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 14,
+                                horizontal: 16,
                               ),
                             ),
                           ),
                         ),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 8),
+                      // Tlačítko pro přidání médií
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: Icon(
-                            Icons.attach_file,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                          onPressed: () {},
+                          icon: Icon(Icons.attach_file, color: Colors.white),
+                          onPressed:
+                              _pickImage, // Volání metody pro výběr obrázku
                         ),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 8),
+
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: Icon(
-                            Icons.send,
-                            color: Colors.white,
-                            size: 28,
-                          ), // Větší ikona
+                          icon: Icon(Icons.send, color: Colors.white),
                           onPressed: _sendMessage,
                         ),
                       ),
@@ -223,5 +237,33 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildMessageBubble(Map<String, dynamic> message) {
+    if (message.containsKey("imagePath")) {
+      return Align(
+        alignment: message["isMe"]
+            ? Alignment.centerRight
+            : Alignment.centerLeft,
+        child: Container(
+          margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(message["imagePath"]),
+              width: 200,
+              height: 200,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      );
+    } else {
+      return GlassMessageBubble(
+        sender: message["sender"],
+        content: message["content"],
+        isMe: message["isMe"],
+      );
+    }
   }
 }

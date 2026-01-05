@@ -5,6 +5,8 @@ import 'connect_screen.dart';
 
 class SignInScreen
     extends StatefulWidget {
+  const SignInScreen({super.key});
+
   @override
   _SignInScreenState createState() =>
       _SignInScreenState();
