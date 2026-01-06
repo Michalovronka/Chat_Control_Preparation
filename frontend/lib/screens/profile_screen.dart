@@ -80,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           // Obsah s marginem a paddingem
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 240),
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 200),
             child: Column(
               children: [
                 SizedBox(height: 20),
