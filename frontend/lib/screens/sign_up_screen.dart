@@ -28,31 +28,6 @@ class _SignUpScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor:
-            Colors.transparent,
-        elevation: 0,
-        leading: Container(
-          margin: EdgeInsets.only(
-            left: 16,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white
-                .withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            icon: Icon(
-              Icons.arrow_back,
-              color: Colors.white,
-              size: 28,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-          ),
-        ),
-      ),
       body: Stack(
         children: [
           // Gradientové pozadí
