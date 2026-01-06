@@ -6,9 +6,14 @@ import '../widgets/glass_message_bubble.dart';
 import 'chat_overview_screen.dart';
 
 class ChatScreen extends StatefulWidget {
+  final String groupName;
+
+  ChatScreen({Key? key, this.groupName = "název chatu"}) : super(key: key);
+
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
+
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
