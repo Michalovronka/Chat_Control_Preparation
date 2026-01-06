@@ -7,23 +7,21 @@ import 'profile_screen.dart'; // Přidej import pro ProfileScreen
 class ConnectScreen extends StatefulWidget {
   const ConnectScreen({super.key});
 
+class ConnectScreen
+    extends StatefulWidget {
+  const ConnectScreen({super.key});
+
   @override
   _ConnectScreenState createState() => _ConnectScreenState();
 }
 
-class _ConnectScreenState extends State<ConnectScreen> {
-  final TextEditingController _codeController = TextEditingController();
-  final String _currentUser = "user#09875557876";
-
-  // Seznam statických chatů
-  final List<Map<String, String>> _chats = [
-    {"name": "Chat No1", "id": "#31161213"},
-    {"name": "Flutter Developers", "id": "#55678912"},
-    {"name": "Projekt X", "id": "#98765432"},
-    {"name": "Týmová spolupráce", "id": "#45678912"},
-    {"name": "Technická podpora", "id": "#12345678"},
-    {"name": "Gaming komunita", "id": "#98765431"},
-  ];
+class _ConnectScreenState
+    extends State<ConnectScreen> {
+  final TextEditingController
+  _codeController =
+      TextEditingController();
+  final String _currentUser =
+      "user#09875557876"; // Příklad aktuálně přihlášeného uživatele
 
   @override
   Widget build(BuildContext context) {

@@ -77,54 +77,54 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-    backgroundColor: Colors.black.withOpacity(0.2),
-    elevation: 0,
-    leading: Container(
-      margin: EdgeInsets.only(left: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        shape: BoxShape.circle,
-      ),
-      child: IconButton(
-        icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
-        onPressed: () {
-          Navigator.pop(context);
-        },
-      ),
+  backgroundColor: Colors.black.withOpacity(0.2),
+  elevation: 0,
+  leading: Container(
+    margin: EdgeInsets.only(left: 16),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.1),
+      shape: BoxShape.circle,
     ),
-    title: GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatOverviewScreen(chatName: widget.groupName),
-          ),
-        );
+    child: IconButton(
+      icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+      onPressed: () {
+        Navigator.pop(context);
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.groupName, // Použití názvu chatu
-            style: TextStyle(
-              fontFamily: 'Jura',
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 20,
-              fontWeight: FontWeight.normal,
-            ),
-          ),
-          Text(
-            "#31161213", // ID chatu
-            style: TextStyle(
-              fontFamily: 'Jura',
-              color: Colors.white70,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
     ),
   ),
+  title: GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatOverviewScreen(chatName: "Chat No1"),
+        ),
+      );
+    },
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Chat No1",
+          style: TextStyle(
+            fontFamily: 'Jura',
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 20,
+            fontWeight: FontWeight.normal,
+          ),
+        ),
+        Text(
+          "#31161213",
+          style: TextStyle(
+            fontFamily: 'Jura',
+            color: Colors.white70,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    ),
+  ),
+),
 
 
       body: Stack(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'package:flutter/services.dart'; // Pro kopírování do schránky
 
 class ChatOverviewScreen extends StatefulWidget {
   final String chatName;
@@ -24,7 +23,6 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
   ];
 
   final TextEditingController _consoleController = TextEditingController();
-  String inviteCode = "16816816"; // Statický zvací kód
 
   @override
   Widget build(BuildContext context) {
@@ -50,28 +48,29 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.chatName,
+              widget.chatName, // Název chatu
               style: TextStyle(
                 fontFamily: 'Jura',
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withOpacity(0.8), // Méně výrazná barva
                 fontSize: 20,
-                fontWeight: FontWeight.normal,
+                fontWeight: FontWeight.normal, // Normální tučnost
               ),
             ),
             Text(
-              "#31161213",
+              "#31161213", // ID chatu
               style: TextStyle(
                 fontFamily: 'Jura',
                 color: Colors.white70,
-                fontSize: 12,
+                fontSize: 12, // Menší písmo
               ),
             ),
           ],
         ),
       ),
+
       body: Stack(
         children: [
-          // Gradientové pozadí
+          // pozadí
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -95,22 +94,18 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
             children: [
               // Nadpis "lidé" a seznam účastníků
               Padding(
-                padding: EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 8),
+                padding: EdgeInsets.only(
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                  bottom: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "lidé",
-                      style: TextStyle(
-                        fontFamily: 'Jura',
-                        color: Colors.white70,
-                        fontSize: 18,
-                      ),
-                    ),
-                    SizedBox(height: 8),
                     // Seznam účastníků
                     Container(
-                      height: MediaQuery.of(context).size.height * 0.5,
+                      height: MediaQuery.of(context).size.height * 0.6,
                       child: ListView.builder(
                         itemCount: participants.length,
                         itemBuilder: (context, index) {
@@ -121,65 +116,9 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                   ],
                 ),
               ),
-              // Zvací kód - v jednom řádku
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    Text(
-                      "Zvací kód: ",
-                      style: TextStyle(
-                        fontFamily: 'Jura',
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  inviteCode,
-                                  style: TextStyle(
-                                    fontFamily: 'Jura',
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                IconButton(
-                                  icon: Icon(Icons.copy, color: Colors.white70, size: 20),
-                                  onPressed: () {
-                                    Clipboard.setData(ClipboardData(text: inviteCode));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Kód zkopírován do schránky')),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               // Konzole pro příkazy
               Padding(
-                padding: EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 16),
+                padding: EdgeInsets.only(left: 16, right: 16, top: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -192,71 +131,45 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                       ),
                     ),
                     SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.2),
-                                  ),
-                                ),
-                                child: TextField(
-                                  controller: _consoleController,
-                                  style: TextStyle(
-                                    fontFamily: 'Jura',
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
-                                  decoration: InputDecoration(
-                                    hintText: "Zadejte příkaz...",
-                                    hintStyle: TextStyle(
-                                      fontFamily: 'Jura',
-                                      color: Colors.white70,
-                                      fontSize: 16,
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.terminal,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                            ),
+                          ),
+                          child: TextField(
+                            controller: _consoleController,
+                            style: TextStyle(
+                              fontFamily: 'Jura',
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: "Zadejte příkaz...",
+                              hintStyle: TextStyle(
+                                fontFamily: 'Jura',
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.terminal,
+                                color: Colors.white70,
                               ),
                             ),
                           ),
                         ),
-                        SizedBox(width: 8),
-                        // Tlačítko pro potvrzení příkazu
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: Icon(Icons.send, color: Colors.white, size: 24),
-                            onPressed: () {
-                              String command = _consoleController.text;
-                              if (command.isNotEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Příkaz "$command" byl proveden')),
-                                );
-                                _consoleController.clear();
-                              }
-                            },
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -291,13 +204,19 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Tlačítko pro soukromý chat
             IconButton(
               icon: Icon(Icons.chat_bubble_outline, color: Colors.white70),
-              onPressed: () {},
+              onPressed: () {
+                // TODO: logika pro soukromý chat
+              },
             ),
+            // Tlačítko pro vyhození člena
             IconButton(
               icon: Icon(Icons.exit_to_app, color: Colors.redAccent),
-              onPressed: () {},
+              onPressed: () {
+                // TODO: logika vyhození membera
+              },
             ),
           ],
         ),
