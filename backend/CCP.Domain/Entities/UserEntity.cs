@@ -1,7 +1,5 @@
 namespace CCP.Domain.Entities;
 
-
-
 public class UserEntity : BaseEntity
 {
     public Guid Id { get; set; }
