@@ -1,4 +1,5 @@
-﻿using CCP.Domain.Models.ClientContracts;
+
+using CCP.Domain.Models.ClientContracts;
 
 namespace CCP.Contracts.Interfaces;
 

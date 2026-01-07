@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../screens/chat_overview_screen.dart';
+import '../screens/connect_screen.dart';
 
 class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String chatName;
   final String chatId;
 
-  const ChatAppBar({Key? key, required this.chatName, required this.chatId}) : super(key: key);
+  const ChatAppBar({super.key, required this.chatName, required this.chatId});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +22,16 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: IconButton(
           icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
           onPressed: () {
-            Navigator.pop(context);
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ConnectScreen(),
+                ),
+              );
+            }
           },
         ),
       ),

@@ -1,8 +1,16 @@
-﻿namespace CCP.Data;
+﻿using CCP.Domain.Entities;
 
-public record RoomEntity(Guid Id, string Name, string Password, Guid[] ChatHistory) : BaseEntity(Id);
+namespace CCP.Data;
+
 
 public interface IRoomRepository : IRepository<RoomEntity>
 {
-    
+        void Add(RoomEntity room);
+
+        RoomEntity? GetById(Guid id);
+        RoomEntity? GetByName(string name);
+        IEnumerable<RoomEntity> GetAll();
+
+        void Update(RoomEntity room);
+        void Delete(Guid id);
 }

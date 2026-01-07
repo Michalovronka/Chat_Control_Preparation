@@ -12,7 +12,7 @@ import '../widgets/chat_background.dart';
 class ChatScreen extends StatefulWidget {
   final String groupName;
 
-  ChatScreen({Key? key, this.groupName = "název chatu"}) : super(key: key);
+  const ChatScreen({super.key, this.groupName = "název chatu"});
 
   @override
   _ChatScreenState createState() => _ChatScreenState();

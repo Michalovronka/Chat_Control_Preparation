@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import '../widgets/logout_button.dart';
 
 class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
@@ -13,18 +13,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _usernameController = TextEditingController(text: "1531");
   final String _userId = "#09875557876";
   bool _isEditing = false;
-  File? _profileImage;
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,18 +72,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           SizedBox(height: 20),
                           // Profilová fotka
-                          GestureDetector(
-                            onTap: _pickImage,
-                            child: CircleAvatar(
-                              radius: 50,
-                              backgroundColor: Colors.white.withOpacity(0.2),
-                              backgroundImage: _profileImage != null
-                                  ? FileImage(_profileImage!)
-                                  : null,
-                              child: _profileImage == null
-                                  ? Icon(Icons.person, size: 50, color: Colors.white)
-                                  : null,
-                            ),
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            child: Icon(Icons.person, size: 50, color: Colors.white),
                           ),
                           SizedBox(height: 24),
                           // Kartička s informacemi
@@ -174,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       _userId,
                                       style: TextStyle(
                                         fontFamily: 'Jura',
-                                        color: Colors.white,
+                                        color: Colors.white70,
                                         fontSize: 16,
                                       ),
                                     ),

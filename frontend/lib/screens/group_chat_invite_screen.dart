@@ -7,7 +7,10 @@ import 'create_group_chat_screen.dart';
 class GroupChatInviteScreen extends StatelessWidget {
   final String groupName;
 
-  GroupChatInviteScreen({required this.groupName});
+  const GroupChatInviteScreen({
+    super.key,
+    required this.groupName,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,16 +75,13 @@ class GroupChatInviteScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Nahraný obrázek nebo placeholder
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                      image: DecorationImage(
-                        image: NetworkImage('https://via.placeholder.com/150'), // Placeholder obrázek
-                        fit: BoxFit.cover,
-                      ),
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    child: Icon(
+                      Icons.group,
+                      color: Colors.white70,
+                      size: 40,
                     ),
                   ),
                   SizedBox(height: 16),
@@ -149,11 +149,12 @@ class GroupChatInviteScreen extends StatelessWidget {
                   // Tlačítko Potvrdit
                   ElevatedButton(
                     onPressed: () {
-                      Navigator.push(
+                      Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
                           builder: (context) => ChatScreen(groupName: groupName),
                         ),
+                        (route) => false, // Remove all previous routes
                       );
                     },
                     style: ElevatedButton.styleFrom(
