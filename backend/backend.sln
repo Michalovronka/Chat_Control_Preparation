@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CCP.Contracts", "CCP.Contra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CCP.Data", "CCP.Data\CCP.Data.csproj", "{3296F632-7FC1-4935-89AC-E64B993131F5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CCP.Domain", "CCP.Domain\CCP.Domain.csproj", "{F704772C-9FB5-4C48-A6FB-48361C55DC1C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{3296F632-7FC1-4935-89AC-E64B993131F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3296F632-7FC1-4935-89AC-E64B993131F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3296F632-7FC1-4935-89AC-E64B993131F5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F704772C-9FB5-4C48-A6FB-48361C55DC1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F704772C-9FB5-4C48-A6FB-48361C55DC1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F704772C-9FB5-4C48-A6FB-48361C55DC1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F704772C-9FB5-4C48-A6FB-48361C55DC1C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
