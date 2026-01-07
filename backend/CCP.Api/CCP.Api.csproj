@@ -17,4 +17,8 @@
       <ProjectReference Include="..\CCP.Domain\CCP.Domain.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\CCP.Data\CCP.Data.csproj" />
+    </ItemGroup>
+
 </Project>
