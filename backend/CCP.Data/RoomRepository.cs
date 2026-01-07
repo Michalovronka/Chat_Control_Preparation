@@ -1,4 +1,6 @@
-﻿namespace CCP.Data;
+﻿using CCP.Domain.Entities;
+
+namespace CCP.Data;
 
 public class RoomRepository : IRoomRepository
 {

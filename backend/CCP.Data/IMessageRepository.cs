@@ -1,6 +1,7 @@
-﻿namespace CCP.Data;
+﻿using CCP.Domain.Entities;
 
-public record MessageEntity(Guid Id, string Content, bool isImage, Guid SenderId, Guid RoomId, DateTime SentAt) : BaseEntity(Id);
+namespace CCP.Data;
+
 
 public interface IMessageRepository : IRepository<MessageEntity>
 {
