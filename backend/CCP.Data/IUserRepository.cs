@@ -4,7 +4,12 @@ namespace CCP.Data;
 
 public interface IUserRepository
 {
-    UserEntity GetById(Guid id);
-    UserEntity[] GetUsersInRoom(Guid roomIdd);
+    void Add(UserEntity user);
+    
+    UserEntity? GetById(Guid id);
+    IEnumerable<UserEntity> GetAll();
+    
+    void Update(UserEntity user);
+    void Delete(Guid id);
     
 }
