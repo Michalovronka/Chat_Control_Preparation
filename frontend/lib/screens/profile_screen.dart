@@ -154,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       _userId,
                                       style: TextStyle(
                                         fontFamily: 'Jura',
-                                        color: Colors.white,
+                                        color: Colors.white70,
                                         fontSize: 16,
                                       ),
                                     ),
