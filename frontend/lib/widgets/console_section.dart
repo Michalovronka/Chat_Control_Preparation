@@ -4,7 +4,7 @@ import 'dart:ui';
 class ConsoleSection extends StatelessWidget {
   final TextEditingController consoleController;
 
-  const ConsoleSection({Key? key, required this.consoleController}) : super(key: key);
+  const ConsoleSection({super.key, required this.consoleController});
 
   @override
   Widget build(BuildContext context) {

@@ -5,7 +5,7 @@ class ChatTile extends StatelessWidget {
   final String name;
   final String id;
 
-  const ChatTile({Key? key, required this.name, required this.id}) : super(key: key);
+  const ChatTile({super.key, required this.name, required this.id});
 
   @override
   Widget build(BuildContext context) {

@@ -4,7 +4,7 @@ import '../screens/profile_screen.dart';
 class UserProfileSection extends StatelessWidget {
   final String currentUser;
 
-  const UserProfileSection({Key? key, required this.currentUser}) : super(key: key);
+  const UserProfileSection({super.key, required this.currentUser});
 
   @override
   Widget build(BuildContext context) {

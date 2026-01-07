@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 class InviteCodeSection extends StatelessWidget {
   final String inviteCode;
 
-  const InviteCodeSection({Key? key, required this.inviteCode}) : super(key: key);
+  const InviteCodeSection({super.key, required this.inviteCode});
 
   @override
   Widget build(BuildContext context) {

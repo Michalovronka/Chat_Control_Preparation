@@ -4,6 +4,8 @@ import 'chat_screen.dart';
 import 'group_chat_invite_screen.dart';
 
 class CreateGroupChatScreen extends StatefulWidget {
+  const CreateGroupChatScreen({super.key});
+
   @override
   _CreateGroupChatScreenState createState() => _CreateGroupChatScreenState();
 }
@@ -72,22 +74,13 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Nahraný obrázek nebo placeholder
-                  GestureDetector(
-                    onTap: () {
-                      // TODO: Přidat logiku pro výběr obrázku
-                    },
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.camera_alt,
-                        color: Colors.white70,
-                        size: 40,
-                      ),
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    child: Icon(
+                      Icons.group,
+                      color: Colors.white70,
+                      size: 40,
                     ),
                   ),
                   SizedBox(height: 32),
