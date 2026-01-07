@@ -34,9 +34,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
       body: Stack(
         children: [
           // Gradientové pozadí
+          // Gradientové pozadí
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
@@ -47,9 +50,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
                   Colors.black,
                 ],
                 stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+                stops: [0.0, 0.25, 0.5, 0.75, 1.0],
               ),
             ),
           ),
+          // Lehké ztmavení
+          Container(color: Colors.black.withOpacity(0.2)),
           // Lehké ztmavení
           Container(color: Colors.black.withOpacity(0.2)),
           // Obsah
@@ -90,6 +96,62 @@ class _ConnectScreenState extends State<ConnectScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Metoda pro vytvoření kompaktnější položky chatu
+  Widget _buildChatTile(Map<String, String> chat) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatScreen(groupName: chat["name"]!),
+          ),
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.symmetric(vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.white.withOpacity(0.2),
+              child: Icon(Icons.forum, color: Colors.white, size: 18),
+            ),
+            SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  chat["name"]!,
+                  style: TextStyle(
+                    fontFamily: 'Jura',
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  chat["id"]!,
+                  style: TextStyle(
+                    fontFamily: 'Jura',
+                    color: Colors.white70,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
