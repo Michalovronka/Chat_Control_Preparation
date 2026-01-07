@@ -8,10 +8,13 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="9.0.0"/>
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\CCP.Data\CCP.Data.csproj" />
+      <ProjectReference Include="..\CCP.Contracts\CCP.Contracts.csproj" />
+      <ProjectReference Include="..\CCP.Domain\CCP.Domain.csproj" />
     </ItemGroup>
 
 </Project>
