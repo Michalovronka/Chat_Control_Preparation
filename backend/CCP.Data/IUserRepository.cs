@@ -1,10 +1,10 @@
-﻿using CCP.Domain.Entities;
+using CCP.Domain.Entities;
 
 namespace CCP.Data;
 
 public interface IUserRepository
 {
-    UserEntity GetById(Guid id);
+    UserEntity? GetById(Guid id);
     UserEntity[] GetUsersInRoom(Guid roomIdd);
-    
+    void Update(UserEntity user);
 }
