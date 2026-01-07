@@ -2,26 +2,31 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'chat_screen.dart';
 import 'create_group_chat_screen.dart';
-import 'profile_screen.dart'; // Přidej import pro ProfileScreen
+import 'profile_screen.dart';
+import '../widgets/user_profile_section.dart';
+import '../widgets/chat_tile.dart';
+import '../widgets/forum_code_input.dart';
+import '../widgets/connect_actions.dart';
 
 class ConnectScreen extends StatefulWidget {
-  const ConnectScreen({super.key});
-
-class ConnectScreen
-    extends StatefulWidget {
   const ConnectScreen({super.key});
 
   @override
   _ConnectScreenState createState() => _ConnectScreenState();
 }
 
-class _ConnectScreenState
-    extends State<ConnectScreen> {
-  final TextEditingController
-  _codeController =
-      TextEditingController();
-  final String _currentUser =
-      "user#09875557876"; // Příklad aktuálně přihlášeného uživatele
+class _ConnectScreenState extends State<ConnectScreen> {
+  final TextEditingController _codeController = TextEditingController();
+  final String _currentUser = "user#09875557876";
+
+  final List<Map<String, String>> _chats = [
+    {"name": "Chat No1", "id": "#31161213"},
+    {"name": "Flutter Developers", "id": "#55678912"},
+    {"name": "Projekt X", "id": "#98765432"},
+    {"name": "Týmová spolupráce", "id": "#45678912"},
+    {"name": "Technická podpora", "id": "#12345678"},
+    {"name": "Gaming komunita", "id": "#98765431"},
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -53,61 +58,12 @@ class _ConnectScreenState
             child: Column(
               children: [
                 SizedBox(height: 60),
-                // User info - kliknutím na profilovou fotku nebo jméno se dostaneš na profil
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => ProfileScreen()),
-                    );
-                  },
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        child: Icon(Icons.person, size: 24, color: Colors.white),
-                      ),
-                      SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Přehled konverzací",
-                            style: TextStyle(
-                              fontFamily: 'Jura',
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => ProfileScreen()),
-                              );
-                            },
-                            child: Text(
-                              _currentUser,
-                              style: TextStyle(
-                                fontFamily: 'Jura',
-                                color: Colors.white,
-                                fontSize: 14,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                UserProfileSection(currentUser: _currentUser),
                 SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    "Vaše konverzace",
+                    "Vaše fóra",
                     style: TextStyle(
                       fontFamily: 'Jura',
                       color: Colors.white70,
@@ -116,165 +72,24 @@ class _ConnectScreenState
                   ),
                 ),
                 SizedBox(height: 8),
-                // Kompaktnější seznam chatů
                 Expanded(
                   child: ListView.builder(
                     itemCount: _chats.length,
                     itemBuilder: (context, index) {
-                      return _buildChatTile(_chats[index]);
+                      return ChatTile(
+                        name: _chats[index]["name"]!,
+                        id: _chats[index]["id"]!,
+                      );
                     },
                   ),
                 ),
-                Padding(
-                  padding: EdgeInsets.only(bottom: 16),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _codeController,
-                          style: TextStyle(
-                            fontFamily: 'Jura',
-                            color: Colors.white,
-                            fontSize: 18,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: "zadejte kód konverzace...",
-                            hintStyle: TextStyle(
-                              fontFamily: 'Jura',
-                              color: Colors.white70,
-                              fontSize: 18,
-                            ),
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    // Tlačítko Připojit se
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ChatScreen(groupName: "Nový Chat"),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 0, 255, 170),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: Text(
-                          "Připojit se",
-                          style: TextStyle(
-                            fontFamily: 'Jura',
-                            color: Colors.black,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: Icon(Icons.add, color: Colors.white, size: 28),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CreateGroupChatScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                ForumCodeInput(codeController: _codeController),
+                ConnectActions(),
                 SizedBox(height: 24),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // Metoda pro vytvoření kompaktnější položky chatu
-  Widget _buildChatTile(Map<String, String> chat) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatScreen(groupName: chat["name"]!),
-          ),
-        );
-      },
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4),
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-          ),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: Icon(Icons.forum, color: Colors.white, size: 18),
-            ),
-            SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  chat["name"]!,
-                  style: TextStyle(
-                    fontFamily: 'Jura',
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  chat["id"]!,
-                  style: TextStyle(
-                    fontFamily: 'Jura',
-                    color: Colors.white70,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
