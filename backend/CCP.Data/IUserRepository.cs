@@ -1,4 +1,4 @@
-﻿using CCP.Domain.Entities;
+using CCP.Domain.Entities;
 
 namespace CCP.Data;
 

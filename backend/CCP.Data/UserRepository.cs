@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using CCP.Domain.Entities;
@@ -113,4 +113,5 @@ namespace CCP.Data
             };
         }
     }
+    
 }
