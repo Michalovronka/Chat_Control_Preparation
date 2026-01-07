@@ -4,7 +4,7 @@ import 'dart:ui';
 class ForumCodeInput extends StatelessWidget {
   final TextEditingController codeController;
 
-  const ForumCodeInput({Key? key, required this.codeController}) : super(key: key);
+  const ForumCodeInput({super.key, required this.codeController});
 
   @override
   Widget build(BuildContext context) {

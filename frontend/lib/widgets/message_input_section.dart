@@ -7,11 +7,11 @@ class MessageInputSection extends StatelessWidget {
   final VoidCallback onAttachPressed;
 
   const MessageInputSection({
-    Key? key,
+    super.key,
     required this.messageController,
     required this.onSendPressed,
     required this.onAttachPressed,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

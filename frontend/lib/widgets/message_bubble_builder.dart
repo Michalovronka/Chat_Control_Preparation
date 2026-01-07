@@ -5,7 +5,7 @@ import '../widgets/glass_message_bubble.dart';
 class MessageBubbleBuilder extends StatelessWidget {
   final Map<String, dynamic> message;
 
-  const MessageBubbleBuilder({Key? key, required this.message}) : super(key: key);
+  const MessageBubbleBuilder({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {

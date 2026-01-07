@@ -1,7 +1,5 @@
 import 'package:chat_app_fe/screens/sign_in_screen.dart';
 import 'package:flutter/material.dart';
-import 'screens/connect_screen.dart';
-import 'screens/chat_screen.dart';
 
 void main() {
   runApp(MyApp());

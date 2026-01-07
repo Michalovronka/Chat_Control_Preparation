@@ -3,6 +3,8 @@ import '../screens/chat_screen.dart';
 import '../screens/create_group_chat_screen.dart';
 
 class ConnectActions extends StatelessWidget {
+  const ConnectActions({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Row(
