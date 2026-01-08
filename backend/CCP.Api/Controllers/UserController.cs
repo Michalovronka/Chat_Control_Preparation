@@ -73,10 +73,80 @@ public class UserController : ControllerBase
             CurrentRoomId = user.CurrentRoomId
         });
     }
+
+    [HttpGet("room/{roomId}")]
+    public IActionResult GetUsersByRoom(string roomId)
+    {
+        if (!Guid.TryParse(roomId, out var roomGuid))
+        {
+            return BadRequest(new { Error = "Invalid room ID format" });
+        }
+
+        var users = _userRepository.GetAll()
+            .Where(u => u.CurrentRoomId.HasValue && u.CurrentRoomId.Value == roomGuid)
+            .Select(u => new
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                StatusMessage = u.StatusMessage ?? "",
+                UserState = u.UserState,
+                LastTimeSeen = u.LastTimeSeen
+            })
+            .ToList();
+
+        return Ok(users);
+    }
+
+    [HttpPut("{id}")]
+    public IActionResult UpdateUser(string id, [FromBody] UpdateUserRequest request)
+    {
+        if (!Guid.TryParse(id, out var userId))
+        {
+            return BadRequest(new { Error = "Invalid user ID format" });
+        }
+
+        var user = _userRepository.GetById(userId);
+        if (user == null)
+        {
+            return NotFound(new { Error = "User not found" });
+        }
+
+        if (!string.IsNullOrEmpty(request.UserName))
+        {
+            user.UserName = request.UserName;
+        }
+
+        if (request.StatusMessage != null)
+        {
+            user.StatusMessage = request.StatusMessage;
+        }
+
+        if (!string.IsNullOrEmpty(request.UserState))
+        {
+            user.UserState = request.UserState;
+        }
+
+        _userRepository.Update(user);
+
+        return Ok(new
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            StatusMessage = user.StatusMessage,
+            UserState = user.UserState
+        });
+    }
 }
 
 public class CreateUserRequest
 {
     public Guid? UserId { get; set; }
     public string? UserName { get; set; }
+}
+
+public class UpdateUserRequest
+{
+    public string? UserName { get; set; }
+    public string? StatusMessage { get; set; }
+    public string? UserState { get; set; }
 }

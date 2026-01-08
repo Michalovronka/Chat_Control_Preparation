@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import '../screens/chat_overview_screen.dart';
 import '../screens/connect_screen.dart';
+import '../services/signalr_service.dart';
 
 class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String chatName;
-  final String chatId;
+  final String chatId; // Display ID (shortened)
+  final String? fullRoomId; // Full room GUID for API calls
+  final SignalRService? signalRService;
 
-  const ChatAppBar({super.key, required this.chatName, required this.chatId});
+  const ChatAppBar({
+    super.key, 
+    required this.chatName, 
+    required this.chatId,
+    this.fullRoomId,
+    this.signalRService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -37,10 +46,16 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       title: GestureDetector(
         onTap: () {
+          // Use full room ID if available, otherwise try to use chatId (might be full ID)
+          final roomIdToUse = fullRoomId ?? chatId.replaceAll('#', '');
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ChatOverviewScreen(chatName: chatName),
+              builder: (context) => ChatOverviewScreen(
+                chatName: chatName,
+                roomId: roomIdToUse,
+                signalRService: signalRService,
+              ),
             ),
           );
         },

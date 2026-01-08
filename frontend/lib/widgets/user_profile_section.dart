@@ -27,7 +27,7 @@ class UserProfileSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Připojte se k fóru...",
+                currentUser,
                 style: TextStyle(
                   fontFamily: 'Jura',
                   color: Colors.white,

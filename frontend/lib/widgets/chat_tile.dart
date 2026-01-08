@@ -16,7 +16,10 @@ class ChatTile extends StatelessWidget {
           MaterialPageRoute(
             builder: (context) => ChatScreen(groupName: name, roomId: id),
           ),
-        );
+        ).then((_) {
+          // Refresh rooms list when returning from chat
+          // This will be handled by the parent screen if needed
+        });
       },
       child: Container(
         margin: EdgeInsets.symmetric(vertical: 4),
@@ -48,7 +51,7 @@ class ChatTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  id,
+                  id.length >= 8 ? '#${id.substring(0, 8)}' : id,
                   style: TextStyle(
                     fontFamily: 'Jura',
                     color: Colors.white70,

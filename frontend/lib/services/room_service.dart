@@ -92,4 +92,25 @@ class RoomService {
       return null;
     }
   }
+
+  // Get rooms for a user (rooms where user has sent messages)
+  static Future<List<dynamic>?> getRoomsByUser(String userId) async {
+    try {
+      final encodedUserId = Uri.encodeComponent(userId);
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/$encodedUserId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as List<dynamic>;
+      } else {
+        print('Failed to get rooms for user: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error getting rooms for user: $e');
+      return null;
+    }
+  }
 }

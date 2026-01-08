@@ -238,6 +238,7 @@ class _GroupChatInviteScreenState extends State<GroupChatInviteScreen> {
                   // Tlačítko Potvrdit
                   ElevatedButton(
                     onPressed: () {
+                      // Navigate to chat and remove all previous routes
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(

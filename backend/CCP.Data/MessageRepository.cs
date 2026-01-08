@@ -136,6 +136,32 @@ namespace CCP.Data
         }
 
         // ========================
+        // READ - ROOMS BY USER
+        // ========================
+        public IEnumerable<Guid> GetRoomIdsByUser(Guid userId)
+        {
+            var roomIds = new List<Guid>();
+
+            using var conn = new SqliteConnection(ConnectionString);
+            conn.Open();
+
+            const string sql = @"
+            SELECT DISTINCT RoomId FROM Messages
+            WHERE UserId = @UserId;";
+
+            using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@UserId", userId.ToString());
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                roomIds.Add(Guid.Parse(reader["RoomId"].ToString()!));
+            }
+
+            return roomIds;
+        }
+
+        // ========================
         // DELETE
         // ========================
         public void Delete(Guid id)

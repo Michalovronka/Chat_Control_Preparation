@@ -18,17 +18,33 @@ class SignalRService {
   
   Future<void> start() async {
     try {
-      await _connection.start();
-      print('SignalR Connected');
+      // Only start if not already connected
+      if (_connection.state == HubConnectionState.Disconnected) {
+        await _connection.start();
+        print('SignalR Connected');
+      } else {
+        print('SignalR already connected or connecting (state: ${_connection.state})');
+      }
     } catch (e) {
       print('SignalR Connection Error: $e');
       rethrow;
     }
   }
   
+  bool get isConnected => _connection.state == HubConnectionState.Connected;
+  
   Future<void> stop() async {
-    await _connection.stop();
-    print('SignalR Disconnected');
+    try {
+      if (_connection.state != HubConnectionState.Disconnected) {
+        await _connection.stop();
+        print('SignalR Disconnected');
+      } else {
+        print('SignalR already disconnected');
+      }
+    } catch (e) {
+      print('Error stopping SignalR: $e');
+      // Don't rethrow - it's okay if stop fails
+    }
   }
   
   // Send message - matches SendMessageModel: (Guid RoomId, Guid UserId, string Content, DateTime SentTime)
@@ -186,6 +202,25 @@ class SignalRService {
   // Listen to receive leave
   void onReceiveLeave(Function(Map<String, dynamic>) callback) {
     _connection.on('ReceiveLeave', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        callback(arguments[0] as Map<String, dynamic>);
+      }
+    });
+  }
+
+  // Send Who - get users in current room
+  Future<void> sendWho() async {
+    try {
+      await _connection.invoke('SendWho', args: [{}]);
+    } catch (e) {
+      print('Error requesting who: $e');
+      rethrow;
+    }
+  }
+
+  // Listen to receive who
+  void onReceiveWho(Function(Map<String, dynamic>) callback) {
+    _connection.on('ReceiveWho', (arguments) {
       if (arguments != null && arguments.isNotEmpty) {
         callback(arguments[0] as Map<String, dynamic>);
       }

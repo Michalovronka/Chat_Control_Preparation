@@ -19,20 +19,20 @@ class _ConnectScreenState extends State<ConnectScreen> {
   final TextEditingController _codeController = TextEditingController();
   final AppState _appState = AppState();
   bool _isInitializing = true;
-
-  final List<Map<String, String>> _chats = [
-    {"name": "Chat No1", "id": "00000000-0000-0000-0000-000031161213"},
-    {"name": "Flutter Developers", "id": "00000000-0000-0000-0000-000055678912"},
-    {"name": "Projekt X", "id": "00000000-0000-0000-0000-000098765432"},
-    {"name": "Týmová spolupráce", "id": "00000000-0000-0000-0000-000045678912"},
-    {"name": "Technická podpora", "id": "00000000-0000-0000-0000-000012345678"},
-    {"name": "Gaming komunita", "id": "00000000-0000-0000-0000-000098765431"},
-  ];
+  bool _isLoadingRooms = true;
+  List<Map<String, dynamic>> _userRooms = [];
 
   @override
   void initState() {
     super.initState();
     _initializeUser();
+  }
+
+  // Method to refresh rooms (can be called when returning to screen)
+  void refreshRooms() {
+    if (!_isInitializing && _appState.currentUserId != null) {
+      _loadUserRooms();
+    }
   }
 
   Future<void> _initializeUser() async {
@@ -48,9 +48,46 @@ class _ConnectScreenState extends State<ConnectScreen> {
       return;
     }
 
+    // Load user's rooms
+    await _loadUserRooms();
+
     setState(() {
       _isInitializing = false;
     });
+  }
+
+  Future<void> _loadUserRooms() async {
+    if (_appState.currentUserId == null) return;
+
+    setState(() {
+      _isLoadingRooms = true;
+    });
+
+    try {
+      final rooms = await RoomService.getRoomsByUser(_appState.currentUserId!);
+      if (rooms != null) {
+        setState(() {
+          _userRooms = rooms.map((room) {
+            final roomId = room['id'] ?? room['Id'];
+            final roomName = room['roomName'] ?? room['RoomName'] ?? 'Unknown Room';
+            return {
+              'id': roomId?.toString() ?? '',
+              'name': roomName,
+            };
+          }).toList();
+          _isLoadingRooms = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingRooms = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading user rooms: $e');
+      setState(() {
+        _isLoadingRooms = false;
+      });
+    }
   }
 
   @override
@@ -109,15 +146,32 @@ class _ConnectScreenState extends State<ConnectScreen> {
                 ),
                 SizedBox(height: 8),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: _chats.length,
-                    itemBuilder: (context, index) {
-                      return ChatTile(
-                        name: _chats[index]["name"]!,
-                        id: _chats[index]["id"]!,
-                      );
-                    },
-                  ),
+                  child: _isLoadingRooms
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white70,
+                          ),
+                        )
+                      : _userRooms.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Žádná fóra',
+                                style: TextStyle(
+                                  fontFamily: 'Jura',
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _userRooms.length,
+                              itemBuilder: (context, index) {
+                                return ChatTile(
+                                  name: _userRooms[index]["name"] ?? "Unknown",
+                                  id: _userRooms[index]["id"] ?? "",
+                                );
+                              },
+                            ),
                 ),
                 ForumCodeInput(codeController: _codeController),
                 ConnectActions(
@@ -142,7 +196,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
                               roomId: roomId.toString(),
                             ),
                           ),
-                        );
+                        ).then((_) {
+                          // Refresh rooms when returning from chat
+                          refreshRooms();
+                        });
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Room not found')),

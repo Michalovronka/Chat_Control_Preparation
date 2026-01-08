@@ -51,18 +51,19 @@ class _ChatScreenState extends State<ChatScreen> {
           
           print('Parsed - userId: $userId, userName: $userName, content: "$content"'); // Debug
           
-          if (content.isEmpty) {
-            print('WARNING: Content is empty!'); // Debug
-          }
+          // Check if content is an image path
+          final bool isImageMessage = content.startsWith('[IMAGE]');
+          final String? imagePath = isImageMessage ? content.substring(7) : null;
           
           final isMe = userId == _appState.currentUserId;
           _messages.add({
             "sender": isMe 
                 ? "${_appState.currentUserName ?? userName ?? 'You'} (you)" 
                 : (userName ?? "User $userId"),
-            "content": content,
+            "content": isImageMessage ? "" : content,
             "isMe": isMe,
-            "isImage": isImage == "true",
+            "isImage": isImageMessage || isImage == "true",
+            if (imagePath != null) "imagePath": imagePath,
           });
         });
         _scrollToBottom();
@@ -80,14 +81,20 @@ class _ChatScreenState extends State<ChatScreen> {
             final userName = (msgMap['UserName'] ?? msgMap['userName'])?.toString();
             final content = (msgMap['Content'] ?? msgMap['content'])?.toString() ?? '';
             print('Loaded message - userId: $userId, userName: $userName, content: "$content"'); // Debug
+            
+            // Check if content is an image path
+            final bool isImageMessage = content.startsWith('[IMAGE]');
+            final String? imagePath = isImageMessage ? content.substring(7) : null;
+            
             final isMe = userId == _appState.currentUserId;
             _messages.add({
               "sender": isMe 
                   ? "${_appState.currentUserName ?? userName ?? 'You'} (you)" 
                   : (userName ?? "User $userId"),
-              "content": content,
+              "content": isImageMessage ? "" : content,
               "isMe": isMe,
-              "isImage": false,
+              "isImage": isImageMessage,
+              if (imagePath != null) "imagePath": imagePath,
             });
           }
         });
@@ -139,6 +146,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    // Leave the room before disposing (fire and forget)
+    if (_isConnected && _appState.currentUserId != null && _appState.currentRoomId != null) {
+      _signalRService.sendLeave(
+        userId: _appState.currentUserId!,
+        roomId: _appState.currentRoomId!,
+      ).catchError((e) {
+        print('Error leaving room on dispose: $e');
+      });
+    }
     _signalRService.stop();
     _messageController.dispose();
     _scrollController.dispose();
@@ -150,17 +166,41 @@ class _ChatScreenState extends State<ChatScreen> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
-      // TODO: Upload image and send image message
-      setState(() {
-        _messages.add({
-          "sender": "${_appState.currentUserName ?? 'You'} (you)",
-          "content": "",
-          "isMe": true,
-          "imagePath": pickedFile.path,
-          "isImage": true,
+      final userId = _appState.currentUserId;
+      final roomId = _appState.currentRoomId;
+
+      if (userId == null || roomId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User or room not set')),
+        );
+        return;
+      }
+
+      try {
+        // Send image path as message content (full implementation would upload to server)
+        await _signalRService.sendMessage(
+          userId: userId,
+          content: '[IMAGE]${pickedFile.path}',
+          roomId: roomId,
+        );
+        
+        // Add to local messages for immediate display
+        setState(() {
+          _messages.add({
+            "sender": "${_appState.currentUserName ?? 'You'} (you)",
+            "content": "",
+            "isMe": true,
+            "imagePath": pickedFile.path,
+            "isImage": true,
+          });
         });
-      });
-      _scrollToBottom();
+        _scrollToBottom();
+      } catch (e) {
+        print('Error sending image: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send image: $e')),
+        );
+      }
     }
   }
 
@@ -217,7 +257,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: ChatAppBar(chatName: widget.groupName, chatId: widget.roomId ?? "#31161213"),
+      appBar: ChatAppBar(
+        chatName: widget.groupName, 
+        chatId: widget.roomId != null 
+            ? '#${widget.roomId!.length >= 8 ? widget.roomId!.substring(0, 8) : widget.roomId!}' 
+            : "#31161213",
+        fullRoomId: widget.roomId, // Pass full room ID for API calls
+        signalRService: _signalRService,
+      ),
       body: Stack(
         children: [
           ChatBackground(),

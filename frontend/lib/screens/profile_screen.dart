@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../widgets/logout_button.dart';
+import '../services/app_state.dart';
+import '../services/user_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,12 +12,80 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final TextEditingController _usernameController = TextEditingController(text: "1531");
-  final String _userId = "#09875557876";
+  final AppState _appState = AppState();
+  late TextEditingController _usernameController;
+  String? _userId;
   bool _isEditing = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userId = _appState.currentUserId;
+    final userName = _appState.currentUserName ?? 'User';
+    
+    setState(() {
+      _userId = userId;
+      _usernameController = TextEditingController(text: userName);
+      _isLoading = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveUsername() async {
+    if (_userId == null) return;
+    
+    try {
+      // Update username via API
+      final result = await UserService.updateUser(
+        userId: _userId!,
+        userName: _usernameController.text,
+      );
+      if (result != null) {
+        // Update local state
+        _appState.setUser(_userId!, _usernameController.text);
+        setState(() {
+          _isEditing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Změny byly uloženy')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chyba při ukládání')),
+        );
+      }
+    } catch (e) {
+      print('Error saving username: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba při ukládání: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    }
+
+    final userIdDisplay = _userId != null 
+        ? '#${_userId!.length >= 8 ? _userId!.substring(0, 8) : _userId!}' 
+        : '#N/A';
+    
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -151,7 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       ),
                                     ),
                                     Text(
-                                      _userId,
+                                      userIdDisplay,
                                       style: TextStyle(
                                         fontFamily: 'Jura',
                                         color: Colors.white70,
@@ -170,12 +240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: ElevatedButton(
                               onPressed: () {
                                 if (_isEditing) {
-                                  setState(() {
-                                    _isEditing = false;
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Změny byly uloženy')),
-                                  );
+                                  _saveUsername();
                                 } else {
                                   setState(() {
                                     _isEditing = true;

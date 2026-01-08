@@ -9,10 +9,12 @@ namespace CCP.Api.Controllers;
 public class RoomController : ControllerBase
 {
     private readonly IRoomRepository _roomRepository;
+    private readonly IMessageRepository _messageRepository;
 
-    public RoomController(IRoomRepository roomRepository)
+    public RoomController(IRoomRepository roomRepository, IMessageRepository messageRepository)
     {
         _roomRepository = roomRepository;
+        _messageRepository = messageRepository;
     }
 
     [HttpPost("create")]
@@ -72,7 +74,8 @@ public class RoomController : ControllerBase
         {
             Id = room.Id,
             RoomName = room.RoomName,
-            HasPassword = !string.IsNullOrEmpty(room.Password)
+            HasPassword = !string.IsNullOrEmpty(room.Password),
+            InviteCode = room.InviteCode
         });
     }
 
@@ -106,6 +109,33 @@ public class RoomController : ControllerBase
                 Id = r.Id,
                 RoomName = r.RoomName,
                 HasPassword = !string.IsNullOrEmpty(r.Password)
+            })
+            .ToList();
+
+        return Ok(rooms);
+    }
+
+    [HttpGet("user/{userId}")]
+    public IActionResult GetRoomsByUser(string userId)
+    {
+        if (!Guid.TryParse(userId, out var userGuid))
+        {
+            return BadRequest(new { Error = "Invalid user ID format" });
+        }
+
+        // Get room IDs where user has sent messages
+        var roomIds = _messageRepository.GetRoomIdsByUser(userGuid).ToList();
+        
+        // Get room details for each room ID
+        var rooms = roomIds
+            .Select(roomId => _roomRepository.GetById(roomId))
+            .Where(room => room != null && room.Id.HasValue)
+            .Select(room => new
+            {
+                Id = room!.Id,
+                RoomName = room.RoomName,
+                HasPassword = !string.IsNullOrEmpty(room.Password),
+                InviteCode = room.InviteCode
             })
             .ToList();
 

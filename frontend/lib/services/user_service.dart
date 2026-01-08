@@ -69,4 +69,55 @@ class UserService {
 
     return false;
   }
+
+  // Get users in a room
+  static Future<List<dynamic>?> getUsersByRoom(String roomId) async {
+    try {
+      final encodedRoomId = Uri.encodeComponent(roomId);
+      final response = await http.get(
+        Uri.parse('$baseUrl/room/$encodedRoomId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as List<dynamic>;
+      } else {
+        print('Failed to get users in room: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error getting users in room: $e');
+      return null;
+    }
+  }
+
+  // Update user
+  static Future<Map<String, dynamic>?> updateUser({
+    required String userId,
+    String? userName,
+    String? statusMessage,
+    String? userState,
+  }) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'UserName': userName,
+          'StatusMessage': statusMessage,
+          'UserState': userState,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        print('Failed to update user: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error updating user: $e');
+      return null;
+    }
+  }
 }
