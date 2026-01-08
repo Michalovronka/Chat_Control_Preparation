@@ -1,4 +1,4 @@
-﻿using CCP.Domain.Entities;
+using CCP.Domain.Entities;
 
 namespace CCP.Data;
 
@@ -9,6 +9,7 @@ public interface IRoomRepository : IRepository<RoomEntity>
 
         RoomEntity? GetById(Guid id);
         RoomEntity? GetByName(string name);
+        RoomEntity? GetByInviteCode(string inviteCode);
         IEnumerable<RoomEntity> GetAll();
 
         void Update(RoomEntity room);

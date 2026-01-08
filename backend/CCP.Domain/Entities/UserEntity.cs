@@ -5,6 +5,7 @@ public class UserEntity : BaseEntity
     public Guid Id { get; set; }
 
     public string UserName { get; set; } = null!;
+    public string? PasswordHash { get; set; }
     public DateTime LastTimeSeen { get; set; }
     public string? StatusMessage { get; set; }
 

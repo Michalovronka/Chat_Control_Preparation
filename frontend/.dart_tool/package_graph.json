@@ -10,7 +10,9 @@
         "cupertino_icons",
         "firebase_core",
         "flutter",
-        "image_picker"
+        "http",
+        "image_picker",
+        "signalr_netcore"
       ],
       "devDependencies": [
         "flutter_lints",
@@ -55,6 +57,16 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "http",
+      "version": "1.6.0",
+      "dependencies": [
+        "async",
+        "http_parser",
+        "meta",
+        "web"
       ]
     },
     {
@@ -242,6 +254,29 @@
       ]
     },
     {
+      "name": "web",
+      "version": "1.1.1",
+      "dependencies": []
+    },
+    {
+      "name": "http_parser",
+      "version": "4.1.2",
+      "dependencies": [
+        "collection",
+        "source_span",
+        "string_scanner",
+        "typed_data"
+      ]
+    },
+    {
+      "name": "async",
+      "version": "2.13.0",
+      "dependencies": [
+        "collection",
+        "meta"
+      ]
+    },
+    {
       "name": "firebase_core_web",
       "version": "3.3.1",
       "dependencies": [
@@ -307,16 +342,6 @@
       ]
     },
     {
-      "name": "http",
-      "version": "1.6.0",
-      "dependencies": [
-        "async",
-        "http_parser",
-        "meta",
-        "web"
-      ]
-    },
-    {
       "name": "cross_file",
       "version": "0.3.5+1",
       "dependencies": [
@@ -343,11 +368,6 @@
       ]
     },
     {
-      "name": "web",
-      "version": "1.1.1",
-      "dependencies": []
-    },
-    {
       "name": "mime",
       "version": "2.0.0",
       "dependencies": []
@@ -364,14 +384,6 @@
       "version": "2.0.33",
       "dependencies": [
         "flutter"
-      ]
-    },
-    {
-      "name": "async",
-      "version": "2.13.0",
-      "dependencies": [
-        "collection",
-        "meta"
       ]
     },
     {
@@ -424,13 +436,10 @@
       ]
     },
     {
-      "name": "http_parser",
-      "version": "4.1.2",
+      "name": "typed_data",
+      "version": "1.4.0",
       "dependencies": [
-        "collection",
-        "source_span",
-        "string_scanner",
-        "typed_data"
+        "collection"
       ]
     },
     {
@@ -439,10 +448,115 @@
       "dependencies": []
     },
     {
-      "name": "typed_data",
-      "version": "1.4.0",
+      "name": "signalr_netcore",
+      "version": "1.4.4",
       "dependencies": [
-        "collection"
+        "flutter",
+        "http",
+        "logging",
+        "message_pack_dart",
+        "sse_channel",
+        "tuple",
+        "web_socket_channel"
+      ]
+    },
+    {
+      "name": "tuple",
+      "version": "2.0.2",
+      "dependencies": []
+    },
+    {
+      "name": "sse_channel",
+      "version": "0.1.1",
+      "dependencies": [
+        "async",
+        "http",
+        "pool",
+        "sse",
+        "stream_channel",
+        "uuid"
+      ]
+    },
+    {
+      "name": "message_pack_dart",
+      "version": "2.0.1",
+      "dependencies": []
+    },
+    {
+      "name": "logging",
+      "version": "1.3.0",
+      "dependencies": []
+    },
+    {
+      "name": "pool",
+      "version": "1.5.2",
+      "dependencies": [
+        "async",
+        "stack_trace"
+      ]
+    },
+    {
+      "name": "web_socket_channel",
+      "version": "3.0.3",
+      "dependencies": [
+        "async",
+        "crypto",
+        "stream_channel",
+        "web",
+        "web_socket"
+      ]
+    },
+    {
+      "name": "web_socket",
+      "version": "1.0.1",
+      "dependencies": [
+        "web"
+      ]
+    },
+    {
+      "name": "sse",
+      "version": "4.1.8",
+      "dependencies": [
+        "async",
+        "collection",
+        "logging",
+        "pool",
+        "shelf",
+        "stream_channel",
+        "web"
+      ]
+    },
+    {
+      "name": "uuid",
+      "version": "4.5.2",
+      "dependencies": [
+        "crypto",
+        "fixnum",
+        "meta"
+      ]
+    },
+    {
+      "name": "fixnum",
+      "version": "1.1.1",
+      "dependencies": []
+    },
+    {
+      "name": "crypto",
+      "version": "3.0.7",
+      "dependencies": [
+        "typed_data"
+      ]
+    },
+    {
+      "name": "shelf",
+      "version": "1.4.2",
+      "dependencies": [
+        "async",
+        "collection",
+        "http_parser",
+        "path",
+        "stack_trace",
+        "stream_channel"
       ]
     }
   ],

@@ -2,36 +2,175 @@ import 'package:flutter/material.dart';
 import '../widgets/chat_app_bar.dart';
 import '../widgets/participant_tile.dart';
 import '../widgets/invite_code_section.dart';
+import '../services/user_service.dart';
+import '../services/room_service.dart';
+import '../services/app_state.dart';
+import '../services/signalr_service.dart';
 import 'connect_screen.dart';
+import 'chat_screen.dart';
 
 class ChatOverviewScreen extends StatefulWidget {
   final String chatName;
+  final String? roomId;
+  final SignalRService? signalRService; // Optional SignalR service from parent
 
-  const ChatOverviewScreen({super.key, required this.chatName});
+  const ChatOverviewScreen({
+    super.key, 
+    required this.chatName, 
+    this.roomId,
+    this.signalRService,
+  });
 
   @override
   _ChatOverviewScreenState createState() => _ChatOverviewScreenState();
 }
 
 class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
-  final List<Map<String, dynamic>> participants = [
-    {"name": "User1233", "status": ParticipantStatus.online},
-    {"name": "PetrPav_2022", "status": ParticipantStatus.away},
-    {"name": "DeVil666", "status": ParticipantStatus.online},
-    {"name": "User115156", "status": ParticipantStatus.offline},
-    {"name": "MaoZTUnk", "status": ParticipantStatus.online},
-    {"name": "Iggy", "status": ParticipantStatus.away},
-    {"name": "Sajmon55", "status": ParticipantStatus.online},
-    {"name": "ORlljdKf", "status": ParticipantStatus.offline},
-  ];
+  final AppState _appState = AppState();
+  List<Map<String, dynamic>> participants = [];
+  String? inviteCode;
+  bool _isLoading = true;
+  String? _currentUserId;
+  SignalRService? _signalRService;
 
-  String inviteCode = "16816816";
+  @override
+  void initState() {
+    super.initState();
+    _currentUserId = _appState.currentUserId;
+    _signalRService = widget.signalRService;
+    _loadData();
+    
+    // Set up SignalR listeners for real-time updates if service is available
+    if (_signalRService != null) {
+      _setupSignalRListeners();
+    }
+  }
+
+  void _setupSignalRListeners() {
+    if (_signalRService == null) return;
+    
+    // Listen for users joining
+    _signalRService!.onReceiveJoin((data) {
+      print('User joined: $data');
+      // Refresh participants list
+      _loadData();
+    });
+    
+    // Listen for users leaving
+    _signalRService!.onReceiveLeave((data) {
+      print('User left: $data');
+      // Refresh participants list
+      _loadData();
+    });
+  }
+
+  // Method to refresh data
+  void refreshData() {
+    if (widget.roomId != null) {
+      _loadData();
+    }
+  }
+
+  Future<void> _loadData() async {
+    if (widget.roomId == null) {
+      setState(() {
+        _isLoading = false;
+        participants = [];
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Load participants - ensure roomId is a valid GUID
+      String roomIdToUse = widget.roomId!;
+      // Remove any # prefix if present
+      roomIdToUse = roomIdToUse.replaceAll('#', '').trim();
+      
+      print('Loading participants for room: $roomIdToUse');
+      final users = await UserService.getUsersByRoom(roomIdToUse);
+      print('Users in room response: $users');
+      
+      if (users != null) {
+        if (users.isNotEmpty) {
+          setState(() {
+            participants = users.map((user) {
+              final userId = user['id'] ?? user['Id'];
+              final userName = user['userName'] ?? user['UserName'] ?? 'Unknown';
+              final userState = user['userState'] ?? user['UserState'] ?? 'Offline';
+              print('Participant: $userName (ID: $userId, State: $userState)');
+              return {
+                'id': userId?.toString() ?? '',
+                'name': userName,
+                'status': _mapUserStateToParticipantStatus(userState),
+              };
+            }).where((p) => p['id'] != null && p['id']!.isNotEmpty).toList();
+          });
+          print('Loaded ${participants.length} participants');
+        } else {
+          print('No users found in room (empty list)');
+          setState(() {
+            participants = [];
+          });
+        }
+      } else {
+        print('No users found in room (null response)');
+        setState(() {
+          participants = [];
+        });
+      }
+
+      // Load invite code - get room details which should include invite code
+      String roomIdForInvite = widget.roomId!.replaceAll('#', '').trim();
+      final room = await RoomService.getRoom(roomIdForInvite);
+      if (room != null) {
+        setState(() {
+          inviteCode = room['inviteCode'] ?? 
+                      room['InviteCode'] ?? 
+                      'N/A';
+        });
+      } else {
+        setState(() {
+          inviteCode = 'N/A';
+        });
+      }
+    } catch (e) {
+      print('Error loading overview data: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  ParticipantStatus _mapUserStateToParticipantStatus(String userState) {
+    switch (userState.toLowerCase()) {
+      case 'online':
+        return ParticipantStatus.online;
+      case 'away':
+        return ParticipantStatus.away;
+      case 'offline':
+      default:
+        return ParticipantStatus.offline;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final roomIdDisplay = widget.roomId != null 
+        ? '#${widget.roomId!.substring(0, 8)}' 
+        : '#31161213';
+    
     return Scaffold(
       extendBodyBehindAppBar: true,
-      appBar: ChatAppBar(chatName: widget.chatName, chatId: "#31161213"),
+      appBar: ChatAppBar(
+        chatName: widget.chatName, 
+        chatId: roomIdDisplay,
+        fullRoomId: widget.roomId, // Pass full room ID for API calls
+      ),
       body: Stack(
         children: [
           // Gradientové pozadí
@@ -79,7 +218,54 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            // Leave the room via SignalR
+                            if (widget.roomId != null && _currentUserId != null) {
+                              try {
+                                // Use existing SignalR service if available, otherwise create new one
+                                SignalRService? signalRService = _signalRService;
+                                bool shouldStop = false;
+                                
+                                if (signalRService == null) {
+                                  signalRService = SignalRService();
+                                  await signalRService.start();
+                                  shouldStop = true;
+                                  // Wait a bit for connection to establish
+                                  await Future.delayed(Duration(milliseconds: 500));
+                                } else {
+                                  // If service exists, ensure it's connected
+                                  if (!signalRService.isConnected) {
+                                    await signalRService.start();
+                                    // Wait a bit for connection to establish
+                                    await Future.delayed(Duration(milliseconds: 500));
+                                  }
+                                }
+                                
+                                String roomIdToUse = widget.roomId!.replaceAll('#', '').trim();
+                                print('Leaving room: $roomIdToUse as user: $_currentUserId');
+                                
+                                await signalRService.sendLeave(
+                                  userId: _currentUserId!,
+                                  roomId: roomIdToUse,
+                                );
+                                
+                                print('Successfully left room');
+                                
+                                if (shouldStop) {
+                                  await signalRService.stop();
+                                }
+                              } catch (e) {
+                                print('Error leaving room: $e');
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Chyba při opouštění místnosti: $e')),
+                                );
+                              }
+                            }
+                            
+                            // Clear room from app state
+                            _appState.clearRoom();
+                            
+                            // Navigate back to home
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
@@ -120,23 +306,48 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                                 fontSize: 18,
                               ),
                             ),
+                            IconButton(
+                              icon: Icon(Icons.refresh, color: Colors.white70),
+                              onPressed: refreshData,
+                              tooltip: 'Obnovit',
+                            ),
                           ],
                         ),
                         SizedBox(height: 2),
                         Expanded(
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            itemCount: participants.length,
-                            itemBuilder: (context, index) {
-                              return Transform.translate(
-                                offset: Offset(0, index == 0 ? -4 : 0),
-                                child: ParticipantTile(
-                                  participantName: participants[index]["name"],
-                                  status: participants[index]["status"],
-                                ),
-                              );
-                            },
-                          ),
+                          child: _isLoading
+                              ? Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white70,
+                                  ),
+                                )
+                              : participants.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'Žádní účastníci',
+                                        style: TextStyle(
+                                          fontFamily: 'Jura',
+                                          color: Colors.white70,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      padding: EdgeInsets.zero,
+                                      itemCount: participants.length,
+                                      itemBuilder: (context, index) {
+                                        return Transform.translate(
+                                          offset: Offset(0, index == 0 ? -4 : 0),
+                                          child: ParticipantTile(
+                                            participantId: participants[index]["id"]?.toString(),
+                                            participantName: participants[index]["name"],
+                                            status: participants[index]["status"],
+                                            roomId: widget.roomId,
+                                            currentUserId: _currentUserId,
+                                          ),
+                                        );
+                                      },
+                                    ),
                         ),
                       ],
                     ),
@@ -144,7 +355,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                 ),
 
                 // Invite code
-                InviteCodeSection(inviteCode: inviteCode),
+                InviteCodeSection(inviteCode: inviteCode ?? 'N/A'),
                 SizedBox(height: 12),
               ],
             ),
