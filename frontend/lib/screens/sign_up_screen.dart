@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'sign_in_screen.dart';
 import 'connect_screen.dart';
+import '../services/auth_service.dart';
+import '../services/app_state.dart';
 
 class SignUpScreen
     extends StatefulWidget {
@@ -15,7 +17,7 @@ class SignUpScreen
 class _SignUpScreenState
     extends State<SignUpScreen> {
   final TextEditingController
-  _emailController =
+  _usernameController =
       TextEditingController();
   final TextEditingController
   _passwordController =
@@ -23,6 +25,8 @@ class _SignUpScreenState
   final TextEditingController
   _confirmPasswordController =
       TextEditingController();
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -86,12 +90,31 @@ class _SignUpScreenState
                     ),
                   ),
                   SizedBox(height: 48),
-                  // Email input
+                  // Error message
+                  if (_errorMessage != null)
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      margin: EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red),
+                      ),
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          fontFamily: 'Jura',
+                          color: Colors.red[200],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  // Username input
                   _buildGlassInput(
                     controller:
-                        _emailController,
-                    hintText: "Email",
-                    icon: Icons.email,
+                        _usernameController,
+                    hintText: "Uživatelské jméno",
+                    icon: Icons.person,
                   ),
                   SizedBox(height: 16),
                   // Password input
@@ -115,19 +138,7 @@ class _SignUpScreenState
                   SizedBox(height: 32),
                   // Registrace tlačítko
                   ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        // Nahradí aktuální screen v stacku
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (
-                                context,
-                              ) =>
-                                  ConnectScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: _isLoading ? null : _handleRegister,
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
                           const Color.fromARGB(255, 0, 255, 170),
@@ -144,16 +155,26 @@ class _SignUpScreenState
                             vertical:
                                 16,
                           ),
+                      disabledBackgroundColor: Colors.grey,
                     ),
-                    child: Text(
-                      "Zaregistrovat se",
-                      style: TextStyle(
-                        fontFamily:
-                            'Jura',
-                        color: const Color.fromARGB(255, 0, 0, 0),
-                        fontSize: 18,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                            ),
+                          )
+                        : Text(
+                            "Zaregistrovat se",
+                            style: TextStyle(
+                              fontFamily:
+                                  'Jura',
+                              color: const Color.fromARGB(255, 0, 0, 0),
+                              fontSize: 18,
+                            ),
+                          ),
                   ),
                   SizedBox(height: 24),
                   Row(
@@ -209,6 +230,112 @@ class _SignUpScreenState
         ],
       ),
     );
+  }
+
+  Future<void> _handleRegister() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (username.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      setState(() {
+        _errorMessage = 'Prosím vyplňte všechna pole';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        _errorMessage = 'Hesla se neshodují';
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() {
+        _errorMessage = 'Heslo musí mít alespoň 6 znaků';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await AuthService.register(username, password);
+      
+      if (result != null && result['error'] == null) {
+        // Registration successful, also log in
+        try {
+          final appState = AppState();
+          // Safely extract values with proper type handling
+          // Try both PascalCase and camelCase
+          final userIdValue = result['UserId'] ?? result['userId'];
+          final userNameValue = result['UserName'] ?? result['userName'];
+          
+          print('Raw result: $result'); // Debug
+          print('userIdValue: $userIdValue (type: ${userIdValue.runtimeType})'); // Debug
+          print('userNameValue: $userNameValue (type: ${userNameValue.runtimeType})'); // Debug
+          
+          String userId = '';
+          String userName = username;
+          
+          if (userIdValue != null) {
+            if (userIdValue is String) {
+              userId = userIdValue;
+            } else {
+              userId = userIdValue.toString();
+            }
+          }
+          
+          if (userNameValue != null) {
+            if (userNameValue is String) {
+              userName = userNameValue;
+            } else {
+              userName = userNameValue.toString();
+            }
+          }
+          
+          print('Setting user - userId: "$userId", userName: "$userName"'); // Debug
+          
+          if (userId.isNotEmpty && userName.isNotEmpty) {
+            appState.setUser(userId, userName);
+            
+            if (mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ConnectScreen(),
+                ),
+              );
+            }
+          } else {
+            setState(() {
+              _errorMessage = 'Registration succeeded but failed to get user information';
+              _isLoading = false;
+            });
+          }
+        } catch (e) {
+          setState(() {
+            _errorMessage = 'Error processing registration: $e';
+            _isLoading = false;
+          });
+        }
+      } else {
+        // Registration failed
+        setState(() {
+          _errorMessage = result?['error'] ?? 'Registrace selhala';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Chyba: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   // Pomocná metoda pro vytvoření glass inputu

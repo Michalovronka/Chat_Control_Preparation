@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/sign_in_screen.dart';
+import '../services/app_state.dart';
 
 class LogoutButton extends StatelessWidget {
   const LogoutButton({super.key});
@@ -8,6 +9,9 @@ class LogoutButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton(
       onPressed: () {
+        // Clear authentication state
+        AppState().clear();
+        
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => SignInScreen()),

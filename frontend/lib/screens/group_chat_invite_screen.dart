@@ -3,8 +3,10 @@ import 'package:flutter/services.dart'; // Pro kopírování do schránky
 import 'dart:ui';
 import 'chat_screen.dart';
 import 'create_group_chat_screen.dart';
+import '../services/room_service.dart';
+import '../services/app_state.dart';
 
-class GroupChatInviteScreen extends StatelessWidget {
+class GroupChatInviteScreen extends StatefulWidget {
   final String groupName;
 
   const GroupChatInviteScreen({
@@ -13,8 +15,95 @@ class GroupChatInviteScreen extends StatelessWidget {
   });
 
   @override
+  _GroupChatInviteScreenState createState() => _GroupChatInviteScreenState();
+}
+
+class _GroupChatInviteScreenState extends State<GroupChatInviteScreen> {
+  String? _inviteCode;
+  String? _roomId;
+  bool _isCreating = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _createRoom();
+  }
+
+  Future<void> _createRoom() async {
+    try {
+      // Generate room ID
+      final roomId = AppState.generateGuid();
+      
+      // Create room in backend
+      final result = await RoomService.createRoom(
+        roomId: roomId,
+        roomName: widget.groupName,
+      );
+
+      if (result != null) {
+        // Debug: print the response to see what we're getting
+        print('Room creation response: $result');
+        print('Response keys: ${result.keys.toList()}');
+        
+        setState(() {
+          // Handle both camelCase and PascalCase response formats
+          _roomId = result['roomId']?.toString() ?? 
+                   result['RoomId']?.toString() ?? 
+                   roomId;
+          // Get invite code from the API response - try different possible key names
+          _inviteCode = result['inviteCode']?.toString() ?? 
+                       result['InviteCode']?.toString() ?? 
+                       result['invite_code']?.toString();
+          print('Extracted invite code: $_inviteCode');
+          _isCreating = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Failed to create room';
+          _isCreating = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error: $e';
+        _isCreating = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    String inviteCode = "16816816"; // Statický zvací kód
+    if (_isCreating) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_error != null || _inviteCode == null || _inviteCode!.isEmpty || _roomId == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _error ?? 'Failed to create room',
+                style: TextStyle(color: Colors.white),
+              ),
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    String inviteCode = _inviteCode!;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -87,7 +176,7 @@ class GroupChatInviteScreen extends StatelessWidget {
                   SizedBox(height: 16),
                   // Název chatu
                   Text(
-                    groupName,
+                    widget.groupName,
                     style: TextStyle(
                       fontFamily: 'Jura',
                       color: Colors.white,
@@ -152,7 +241,10 @@ class GroupChatInviteScreen extends StatelessWidget {
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ChatScreen(groupName: groupName),
+                          builder: (context) => ChatScreen(
+                            groupName: widget.groupName,
+                            roomId: _roomId!,
+                          ),
                         ),
                         (route) => false, // Remove all previous routes
                       );

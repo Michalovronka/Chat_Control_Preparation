@@ -1,3 +1,3 @@
 namespace CCP.Domain.Models.ClientContracts;
 
-public record SendJoinModel(string? Message) : SendContractModel;
+public record SendJoinModel(Guid UserId, Guid RoomId, string? Message = null) : SendContractModel;

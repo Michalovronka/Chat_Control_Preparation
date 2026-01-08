@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using CCP.Domain.Entities;
 
 namespace CCP.Data
 {
     public class RoomRepository : IRoomRepository
     {
-        private const string ConnectionString = "Data Source=chat.db;Version=3;";
+        private const string ConnectionString = "Data Source=chat.db";
 
         // ========================
         // CREATE
@@ -16,20 +16,22 @@ namespace CCP.Data
 
         public void Add(RoomEntity room)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = @"
             INSERT INTO Rooms
-            (Id, Name, PasswordHash)
+            (Id, Name, PasswordHash, InviteCode)
             VALUES
-            (@Id, @Name, @PasswordHash);";
+            (@Id, @Name, @PasswordHash, @InviteCode);";
 
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", room.Id.ToString());
             cmd.Parameters.AddWithValue("@Name", room.RoomName);
             cmd.Parameters.AddWithValue("@PasswordHash",
                 (object?)room.Password ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@InviteCode",
+                (object?)room.InviteCode ?? DBNull.Value);
 
             cmd.ExecuteNonQuery();
         }
@@ -39,11 +41,11 @@ namespace CCP.Data
         // ========================
         public RoomEntity? GetById(Guid id)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = "SELECT * FROM Rooms WHERE Id = @Id;";
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id.ToString());
 
             using var reader = cmd.ExecuteReader();
@@ -58,12 +60,34 @@ namespace CCP.Data
         // ========================
         public RoomEntity? GetByName(string name)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = "SELECT * FROM Rooms WHERE Name = @Name;";
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Name", name);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            return MapRoom(reader);
+        }
+
+        // ========================
+        // READ - BY INVITE CODE
+        // ========================
+        public RoomEntity? GetByInviteCode(string inviteCode)
+        {
+            using var conn = new SqliteConnection(ConnectionString);
+            conn.Open();
+
+            // Normalize invite code to uppercase for case-insensitive lookup
+            var normalizedCode = inviteCode?.ToUpperInvariant() ?? string.Empty;
+            
+            const string sql = "SELECT * FROM Rooms WHERE UPPER(InviteCode) = UPPER(@InviteCode);";
+            using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@InviteCode", normalizedCode);
 
             using var reader = cmd.ExecuteReader();
             if (!reader.Read())
@@ -79,11 +103,11 @@ namespace CCP.Data
         {
             var rooms = new List<RoomEntity>();
 
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = "SELECT * FROM Rooms;";
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             using var reader = cmd.ExecuteReader();
 
             while (reader.Read())
@@ -99,20 +123,23 @@ namespace CCP.Data
         // ========================
         public void Update(RoomEntity room)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = @"
             UPDATE Rooms SET
                 Name = @Name,
-                PasswordHash = @PasswordHash
+                PasswordHash = @PasswordHash,
+                InviteCode = @InviteCode
             WHERE Id = @Id;";
 
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", room.Id.ToString());
             cmd.Parameters.AddWithValue("@Name", room.RoomName);
             cmd.Parameters.AddWithValue("@PasswordHash",
                 (object?)room.Password ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@InviteCode",
+                (object?)room.InviteCode ?? DBNull.Value);
 
             cmd.ExecuteNonQuery();
         }
@@ -123,11 +150,11 @@ namespace CCP.Data
         // ========================
         public void Delete(Guid id)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = "DELETE FROM Rooms WHERE Id = @Id;";
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id.ToString());
 
             cmd.ExecuteNonQuery();
@@ -136,7 +163,7 @@ namespace CCP.Data
         // ========================
         // MAPPING (SQLite → class)
         // ========================
-        private static RoomEntity MapRoom(SQLiteDataReader reader)
+        private static RoomEntity MapRoom(SqliteDataReader reader)
         {
             return new RoomEntity
             {
@@ -144,7 +171,10 @@ namespace CCP.Data
                 RoomName = reader["Name"].ToString()!,
                 Password = reader["PasswordHash"] == DBNull.Value
                     ? null
-                    : reader["PasswordHash"].ToString()
+                    : reader["PasswordHash"].ToString(),
+                InviteCode = reader["InviteCode"] == DBNull.Value
+                    ? null
+                    : reader["InviteCode"].ToString()
             };
         }
     }

@@ -3,7 +3,9 @@ import '../screens/chat_screen.dart';
 import '../screens/create_group_chat_screen.dart';
 
 class ConnectActions extends StatelessWidget {
-  const ConnectActions({super.key});
+  final VoidCallback? onConnectPressed;
+  
+  const ConnectActions({super.key, this.onConnectPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +13,7 @@ class ConnectActions extends StatelessWidget {
       children: [
         Expanded(
           child: ElevatedButton(
-            onPressed: () {
+            onPressed: onConnectPressed ?? () {
               Navigator.push(
                 context,
                 MaterialPageRoute(

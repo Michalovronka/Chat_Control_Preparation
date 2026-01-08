@@ -1,31 +1,67 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using CCP.Domain.Entities;
 
 namespace CCP.Data
 {
     public class MessageRepository : IMessageRepository
     {
-        private IMessageRepository _messageRepositoryImplementation;
-        private const string ConnectionString = "Data Source=chat.db;Version=3;";
+        private const string ConnectionString = "Data Source=chat.db";
 
         // ========================
-        // CREATE
+        // READ - ALL
         // ========================
         public IEnumerable<MessageEntity> GetAll()
         {
-            throw new NotImplementedException();
+            var messages = new List<MessageEntity>();
+
+            using var conn = new SqliteConnection(ConnectionString);
+            conn.Open();
+
+            const string sql = "SELECT * FROM Messages ORDER BY SentTime ASC;";
+            using var cmd = new SqliteCommand(sql, conn);
+            using var reader = cmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                messages.Add(MapMessage(reader));
+            }
+
+            return messages;
         }
         
+        // ========================
+        // UPDATE
+        // ========================
         public void Update(MessageEntity entity)
         {
-            throw new NotImplementedException();
+            using var conn = new SqliteConnection(ConnectionString);
+            conn.Open();
+
+            const string sql = @"
+            UPDATE Messages SET
+                IsImage = @IsImage,
+                Content = @Content,
+                UserId = @UserId,
+                RoomId = @RoomId,
+                SentTime = @SentTime
+            WHERE Id = @Id;";
+
+            using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@Id", entity.Id.ToString());
+            cmd.Parameters.AddWithValue("@IsImage", entity.IsImage ? 1 : 0);
+            cmd.Parameters.AddWithValue("@Content", entity.Content);
+            cmd.Parameters.AddWithValue("@UserId", entity.UserId.ToString());
+            cmd.Parameters.AddWithValue("@RoomId", entity.RoomId.ToString());
+            cmd.Parameters.AddWithValue("@SentTime", entity.SentTime.ToString("o"));
+
+            cmd.ExecuteNonQuery();
         }
 
         public void Add(MessageEntity message)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = @"
@@ -34,7 +70,7 @@ namespace CCP.Data
             VALUES
             (@Id, @IsImage, @Content, @UserId, @RoomId, @SentTime);";
 
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", message.Id.ToString());
             cmd.Parameters.AddWithValue("@IsImage", message.IsImage ? 1 : 0);
             cmd.Parameters.AddWithValue("@Content", message.Content);
@@ -53,11 +89,11 @@ namespace CCP.Data
         // ========================
         public MessageEntity? GetById(Guid id)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = "SELECT * FROM Messages WHERE Id = @Id;";
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id.ToString());
 
             using var reader = cmd.ExecuteReader();
@@ -74,7 +110,7 @@ namespace CCP.Data
         {
             var messages = new List<MessageEntity>();
 
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = @"
@@ -82,7 +118,7 @@ namespace CCP.Data
             WHERE RoomId = @RoomId
             ORDER BY SentTime ASC;";
 
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@RoomId", roomId.ToString());
 
             using var reader = cmd.ExecuteReader();
@@ -94,16 +130,21 @@ namespace CCP.Data
             return messages;
         }
 
+        public IEnumerable<MessageEntity> GetMessagesByRoom(Guid roomId)
+        {
+            return GetByRoomId(roomId);
+        }
+
         // ========================
         // DELETE
         // ========================
         public void Delete(Guid id)
         {
-            using var conn = new SQLiteConnection(ConnectionString);
+            using var conn = new SqliteConnection(ConnectionString);
             conn.Open();
 
             const string sql = "DELETE FROM Messages WHERE Id = @Id;";
-            using var cmd = new SQLiteCommand(sql, conn);
+            using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id.ToString());
 
             cmd.ExecuteNonQuery();
@@ -112,7 +153,7 @@ namespace CCP.Data
         // ========================
         // MAPPING (SQLite → class)
         // ========================
-        private static MessageEntity MapMessage(SQLiteDataReader reader)
+        private static MessageEntity MapMessage(SqliteDataReader reader)
         {
             return new MessageEntity
             {

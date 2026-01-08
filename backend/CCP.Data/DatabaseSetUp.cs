@@ -1,14 +1,14 @@
-﻿using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 
 namespace CCP.Data
 {
     public static class DatabaseSetUp
     {
-        private const string ConnectionString = "Data Source=chat.db;Version=3;";
+        private const string ConnectionString = "Data Source=chat.db";
 
         public static void Initialize()
         {
-            using var connection = new SQLiteConnection(ConnectionString);
+            using var connection = new SqliteConnection(ConnectionString);
             connection.Open();
 
             CreateUsersTable(connection);
@@ -16,12 +16,13 @@ namespace CCP.Data
             CreateMessagesTable(connection);
         }
 
-        private static void CreateUsersTable(SQLiteConnection connection)
+        private static void CreateUsersTable(SqliteConnection connection)
         {
             var sql = @"
             CREATE TABLE IF NOT EXISTS Users (
                 Id TEXT PRIMARY KEY,
-                UserName TEXT NOT NULL,
+                UserName TEXT NOT NULL UNIQUE,
+                PasswordHash TEXT,
                 LastTimeSeen TEXT,
                 StatusMessage TEXT,
                 UserState TEXT,
@@ -29,24 +30,49 @@ namespace CCP.Data
                 ConnectionId TEXT
             );";
 
-            using var cmd = new SQLiteCommand(sql, connection);
+            using var cmd = new SqliteCommand(sql, connection);
             cmd.ExecuteNonQuery();
+
+            // Add PasswordHash column if it doesn't exist (for existing databases)
+            try
+            {
+                var alterSql = "ALTER TABLE Users ADD COLUMN PasswordHash TEXT;";
+                using var alterCmd = new SqliteCommand(alterSql, connection);
+                alterCmd.ExecuteNonQuery();
+            }
+            catch
+            {
+                // Column already exists, ignore
+            }
         }
 
-        private static void CreateRoomsTable(SQLiteConnection connection)
+        private static void CreateRoomsTable(SqliteConnection connection)
         {
             var sql = @"
             CREATE TABLE IF NOT EXISTS Rooms (
                 Id TEXT PRIMARY KEY,
                 Name TEXT NOT NULL,
-                PasswordHash TEXT
+                PasswordHash TEXT,
+                InviteCode TEXT
             );";
 
-            using var cmd = new SQLiteCommand(sql, connection);
+            using var cmd = new SqliteCommand(sql, connection);
             cmd.ExecuteNonQuery();
+
+            // Add InviteCode column if it doesn't exist (for existing databases)
+            try
+            {
+                var alterSql = "ALTER TABLE Rooms ADD COLUMN InviteCode TEXT;";
+                using var alterCmd = new SqliteCommand(alterSql, connection);
+                alterCmd.ExecuteNonQuery();
+            }
+            catch
+            {
+                // Column already exists, ignore
+            }
         }
 
-        private static void CreateMessagesTable(SQLiteConnection connection)
+        private static void CreateMessagesTable(SqliteConnection connection)
         {
             var sql = @"
             CREATE TABLE IF NOT EXISTS Messages (
@@ -61,7 +87,7 @@ namespace CCP.Data
                 FOREIGN KEY (RoomId) REFERENCES Rooms(Id)
             );";
 
-            using var cmd = new SQLiteCommand(sql, connection);
+            using var cmd = new SqliteCommand(sql, connection);
             cmd.ExecuteNonQuery();
         }
     }

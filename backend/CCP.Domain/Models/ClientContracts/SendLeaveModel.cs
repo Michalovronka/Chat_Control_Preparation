@@ -1,3 +1,3 @@
-﻿namespace CCP.Domain.Models.ClientContracts;
+namespace CCP.Domain.Models.ClientContracts;
 
-public record SendLeaveModel(string? Message) : SendContractModel;
+public record SendLeaveModel(Guid UserId, Guid RoomId, string? Message = null) : SendContractModel;

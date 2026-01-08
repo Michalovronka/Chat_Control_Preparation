@@ -8,18 +8,44 @@ DatabaseSetUp.Initialize();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Add controllers
+builder.Services.AddControllers();
+
 // Add SignalR
 builder.Services.AddSignalR();
 
-// Configure CORS for SignalR (adjust origins as needed for your frontend)
+// Configure CORS for Flutter web, mobile, and browser testing
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", policy =>
+    options.AddPolicy("AllowBrowser", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://localhost:8080")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        // In development, allow all origins for easier testing
+        // In production, replace with specific origins
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin)) return false;
+                try
+                {
+                    var uri = new Uri(origin);
+                    return uri.Host == "localhost" || uri.Host == "127.0.0.1" || uri.Host == "0.0.0.0" || uri.Host == "10.0.2.2";
+                }
+                catch
+                {
+                    return false;
+                }
+            })
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+        }
     });
 });
 
@@ -37,9 +63,12 @@ if (app.Environment.IsDevelopment())
 }
 
 // Use CORS (must be before UseHttpsRedirection and MapHub)
-app.UseCors("AllowFrontend");
+app.UseCors("AllowBrowser");
 
 app.UseHttpsRedirection();
+
+// Map controllers
+app.MapControllers();
 
 // Map SignalR Hub
 app.MapHub<ChatHub>("/chathub");
