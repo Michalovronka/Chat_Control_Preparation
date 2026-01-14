@@ -76,6 +76,31 @@ public class UserController : ControllerBase
         });
     }
 
+    [HttpGet("by-username/{username}")]
+    public IActionResult GetUserByUsername(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            return BadRequest(new { Error = "Username is required" });
+        }
+
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
+        {
+            return NotFound(new { Error = "User not found" });
+        }
+
+        return Ok(new
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            LastTimeSeen = user.LastTimeSeen,
+            StatusMessage = user.StatusMessage,
+            UserState = user.UserState,
+            CurrentRoomId = user.CurrentRoomId
+        });
+    }
+
     [HttpGet("room/{roomId}")]
     public IActionResult GetUsersByRoom(string roomId)
     {

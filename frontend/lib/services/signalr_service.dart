@@ -257,4 +257,56 @@ class SignalRService {
       }
     });
   }
+
+  // Send Query - invite user
+  Future<void> sendQuery({
+    required String senderUserId,
+    required String receiverUserId,
+    required String roomId,
+  }) async {
+    try {
+      print('[INVITE SENT] Sender: $senderUserId, Receiver: $receiverUserId, Room: $roomId');
+      await _connection.invoke('SendQuery', args: [
+        {
+          'SenderUserId': senderUserId,
+          'ReceiverUserId': receiverUserId,
+          'RoomId': roomId,
+        }
+      ]);
+      print('[INVITE SENT] Successfully sent invite');
+    } catch (e) {
+      print('[INVITE ERROR] Error sending query: $e');
+      rethrow;
+    }
+  }
+
+  // Listen to receive query
+  void onReceiveQuery(Function(Map<String, dynamic>) callback) {
+    _connection.on('ReceiveQuery', (arguments) {
+      print('[INVITE RECEIVED] Raw SignalR arguments: $arguments');
+      if (arguments != null && arguments.isNotEmpty) {
+        final data = arguments[0] as Map<String, dynamic>;
+        print('[INVITE RECEIVED] Parsed data - Sender: ${data['SenderUserId'] ?? data['senderUserId']}, Receiver: ${data['ReceiverUserId'] ?? data['receiverUserId']}, Room: ${data['RoomId'] ?? data['roomId']}');
+        callback(data);
+      } else {
+        print('[INVITE ERROR] Received query with empty or null arguments');
+      }
+    });
+  }
+
+  // Register connection - sets ConnectionId for the user
+  Future<void> registerConnection(String userId) async {
+    try {
+      print('[CONNECTION REGISTER] Registering connection for user: $userId');
+      await _connection.invoke('RegisterConnection', args: [
+        {
+          'UserId': userId,
+        }
+      ]);
+      print('[CONNECTION REGISTER] Successfully registered connection');
+    } catch (e) {
+      print('[CONNECTION ERROR] Error registering connection: $e');
+      rethrow;
+    }
+  }
 }

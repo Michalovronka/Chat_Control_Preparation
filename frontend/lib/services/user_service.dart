@@ -49,6 +49,27 @@ class UserService {
     }
   }
 
+  // Get user by username
+  static Future<Map<String, dynamic>?> getUserByUsername(String username) async {
+    try {
+      final encodedUsername = Uri.encodeComponent(username);
+      final response = await http.get(
+        Uri.parse('$baseUrl/by-username/$encodedUsername'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        print('Failed to get user by username: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error getting user by username: $e');
+      return null;
+    }
+  }
+
   // Initialize user (create if doesn't exist, or get if exists)
   static Future<bool> initializeUser(String userId, String userName) async {
     final appState = AppState();

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import '../screens/chat_screen.dart';
 import '../services/signalr_service.dart';
 import 'user_info_dialog.dart';
 
@@ -106,25 +105,6 @@ class ParticipantTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: Icon(Icons.chat_bubble_outline, color: Colors.white70),
-              onPressed: participantId != null && roomId != null
-                  ? () {
-                      // Navigate to chat screen with this user (private chat)
-                      // For now, navigate to the same room
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatScreen(
-                            groupName: participantName,
-                            roomId: roomId,
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
-              tooltip: 'Chat',
-            ),
             // Only show kick button if current user is the room owner and not trying to kick themselves
             if (currentUserId != null && 
                 participantId != null && 

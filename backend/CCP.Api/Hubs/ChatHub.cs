@@ -331,37 +331,50 @@ public class ChatHub : Hub, IClientChatContracts
 
     public async Task SendQuery(SendQueryModel model)
     {
-        var sender = _userRepository.GetById(model.SenderUserId);
+        // Ensure sender exists and has ConnectionId set
+        var sender = GetOrCreateUser(model.SenderUserId);
         var receiver = _userRepository.GetById(model.ReceiverUserId);
 
-        if (sender == null || receiver == null)
+        Console.WriteLine($"[INVITE SENT] Sender: {model.SenderUserId}, Receiver: {model.ReceiverUserId}, Room: {model.RoomId}");
+
+        if (receiver == null)
         {
-            await Clients.Caller.SendAsync("Error", "User not found");
+            Console.WriteLine($"[INVITE ERROR] Receiver user not found: {model.ReceiverUserId}");
+            await Clients.Caller.SendAsync("Error", "Receiver user not found");
             return;
         }
 
-        var receiveModel = new ReceiveQueryModel(model.SenderUserId, model.ReceiverUserId);
+        var receiveModel = new ReceiveQueryModel(model.SenderUserId, model.ReceiverUserId, model.RoomId);
         
         // Send to the receiver
         if (!string.IsNullOrEmpty(receiver.ConnectionId))
         {
             await Clients.Client(receiver.ConnectionId).SendAsync("ReceiveQuery", receiveModel);
+            Console.WriteLine($"[INVITE RECEIVED] Sent to receiver: {model.ReceiverUserId}, ConnectionId: {receiver.ConnectionId}");
+        }
+        else
+        {
+            Console.WriteLine($"[INVITE ERROR] Receiver has no ConnectionId: {model.ReceiverUserId}");
         }
     }
 
     public async Task SendUserInfo(SendUserInfoModel model)
     {
-        var user = _userRepository.GetById(model.UserId);
-        if (user == null)
-        {
-            await Clients.Caller.SendAsync("Error", "User not found");
-            return;
-        }
-
+        var user = GetOrCreateUser(model.UserId, model.UserName);
+        
         // Update user info
-        user.UserName = model.UserName;
-        user.StatusMessage = model.StatusMessage;
-        user.UserState = model.UserState;
+        if (!string.IsNullOrEmpty(model.UserName))
+        {
+            user.UserName = model.UserName;
+        }
+        if (model.StatusMessage != null)
+        {
+            user.StatusMessage = model.StatusMessage;
+        }
+        if (!string.IsNullOrEmpty(model.UserState))
+        {
+            user.UserState = model.UserState;
+        }
         _userRepository.Update(user);
 
         var receiveModel = new ReceiveUserInfoModel(model.UserId);
@@ -521,6 +534,22 @@ public class ChatHub : Hub, IClientChatContracts
         
         var receiveModel = new ReceiveShowMessagesModel(user.CurrentRoomId.Value);
         await Clients.Caller.SendAsync("ReceiveShowMessages", receiveModel);
+    }
+
+    public async Task RegisterConnection(RegisterConnectionModel model)
+    {
+        var user = _userRepository.GetById(model.UserId);
+        if (user != null)
+        {
+            user.ConnectionId = Context.ConnectionId;
+            user.LastTimeSeen = DateTime.UtcNow;
+            _userRepository.Update(user);
+            Console.WriteLine($"[CONNECTION REGISTERED] User: {model.UserId}, ConnectionId: {Context.ConnectionId}");
+        }
+        else
+        {
+            Console.WriteLine($"[CONNECTION ERROR] User not found: {model.UserId}");
+        }
     }
 
     public async Task SendKick(SendKickModel model)

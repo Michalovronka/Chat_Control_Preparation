@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../widgets/chat_app_bar.dart';
 import '../widgets/participant_tile.dart';
 import '../widgets/invite_code_section.dart';
@@ -26,6 +27,7 @@ class ChatOverviewScreen extends StatefulWidget {
 
 class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
   final AppState _appState = AppState();
+  final TextEditingController _inviteUsernameController = TextEditingController();
   List<Map<String, dynamic>> participants = [];
   String? inviteCode;
   bool _isLoading = true;
@@ -381,6 +383,78 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                   ),
                 ),
 
+                // Invite user section
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _inviteUsernameController,
+                                  style: TextStyle(
+                                    fontFamily: 'Jura',
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: "Uživatelské jméno...",
+                                    hintStyle: TextStyle(
+                                      fontFamily: 'Jura',
+                                      color: Colors.white70,
+                                      fontSize: 16,
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: Icon(Icons.person_add, color: Colors.white, size: 20),
+                                  onPressed: _currentUserId != null && widget.roomId != null
+                                      ? () => _sendInvite()
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+
                 // Invite code
                 InviteCodeSection(inviteCode: inviteCode ?? 'N/A'),
                 SizedBox(height: 12),
@@ -390,5 +464,80 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _sendInvite() async {
+    final username = _inviteUsernameController.text.trim();
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Zadejte uživatelské jméno')),
+      );
+      return;
+    }
+
+    if (_currentUserId == null || widget.roomId == null) {
+      return;
+    }
+
+    try {
+      // Find user by username
+      final user = await UserService.getUserByUsername(username);
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Uživatel nenalezen')),
+        );
+        return;
+      }
+
+      final receiverUserId = (user['id'] ?? user['Id'])?.toString();
+      if (receiverUserId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chyba při získávání ID uživatele')),
+        );
+        return;
+      }
+
+      // Ensure SignalR is connected
+      SignalRService? signalR = _signalRService;
+      bool shouldStop = false;
+      if (signalR == null) {
+        signalR = SignalRService();
+        await signalR.start();
+        shouldStop = true;
+        await Future.delayed(Duration(milliseconds: 500));
+      } else if (!signalR.isConnected) {
+        await signalR.start();
+        await Future.delayed(Duration(milliseconds: 500));
+      }
+
+      // Send query (invite)
+      print('[INVITE SENT] From chat_overview_screen - Sender: $_currentUserId, Receiver: $receiverUserId, Room: ${widget.roomId}, Username: $username');
+      await signalR.sendQuery(
+        senderUserId: _currentUserId!,
+        receiverUserId: receiverUserId,
+        roomId: widget.roomId!,
+      );
+      print('[INVITE SENT] Invite sent successfully from chat_overview_screen');
+
+      if (shouldStop) {
+        await signalR.stop();
+      }
+
+      _inviteUsernameController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pozvánka odeslána uživateli $username')),
+      );
+    } catch (e) {
+      print('Error sending invite: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba při odesílání pozvánky: $e')),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _inviteUsernameController.dispose();
+    super.dispose();
   }
 }
