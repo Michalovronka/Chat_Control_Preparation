@@ -15,6 +15,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         fontFamily: 'Jura',
       ),
+      debugShowCheckedModeBanner: false, // Remove debug banner
       home: SignInScreen(), // default screen
     );
   }

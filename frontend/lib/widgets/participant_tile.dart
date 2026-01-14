@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/chat_screen.dart';
 import '../services/signalr_service.dart';
+import 'user_info_dialog.dart';
 
 enum ParticipantStatus {
   online,
@@ -37,6 +38,19 @@ class ParticipantTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
+        onTap: participantId != null
+            ? () {
+                // Show user info dialog when tapping on the tile
+                showDialog(
+                  context: context,
+                  builder: (context) => UserInfoDialog(
+                    userId: participantId!,
+                    userName: participantName,
+                    userStatus: status.toString(),
+                  ),
+                );
+              }
+            : null,
         leading: Stack(
           children: [
             CircleAvatar(
@@ -89,6 +103,7 @@ class ParticipantTile extends StatelessWidget {
                       );
                     }
                   : null,
+              tooltip: 'Chat',
             ),
             // Only show kick button if current user is the room owner and not trying to kick themselves
             if (currentUserId != null && 

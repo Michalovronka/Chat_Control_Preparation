@@ -109,9 +109,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       );
     }
 
-    final currentUser = _appState.currentUserName ?? "Guest";
-    final userId = _appState.currentUserId ?? "unknown";
-
+    // Get fresh values from app state each time build is called
     return Scaffold(
       body: Stack(
         children: [
@@ -140,7 +138,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
             child: Column(
               children: [
                 SizedBox(height: 60),
-                UserProfileSection(currentUser: currentUser, userId: userId),
+                UserProfileSection(
+                  currentUser: _appState.currentUserName ?? "Guest", 
+                  userId: _appState.currentUserId ?? "unknown",
+                  onProfileUpdated: () {
+                    // Refresh user data when returning from profile
+                    setState(() {
+                      // This will trigger a rebuild with updated user name from AppState
+                    });
+                  },
+                ),
                 SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,

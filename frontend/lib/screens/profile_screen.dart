@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/logout_button.dart';
 import '../services/app_state.dart';
 import '../services/user_service.dart';
@@ -16,6 +17,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _userId;
   bool _isEditing = false;
   bool _isLoading = true;
+  bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
@@ -40,6 +42,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Zkopírováno do schránky'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   Future<void> _saveUsername() async {
     if (_userId == null) return;
     
@@ -54,6 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _appState.setUser(_userId!, _usernameController.text);
         setState(() {
           _isEditing = false;
+          _hasUnsavedChanges = true; // Mark that changes were saved
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Změny byly uloženy')),
@@ -85,24 +98,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? '#${_userId!.length >= 8 ? _userId!.substring(0, 8) : _userId!}' 
         : '#N/A';
     
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Container(
-          margin: EdgeInsets.only(left: 16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            shape: BoxShape.circle,
+    return WillPopScope(
+      onWillPop: () async {
+        // Return true to allow navigation, but we'll pass the update status via Navigator.pop
+        return true;
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: Container(
+            margin: EdgeInsets.only(left: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+              onPressed: () {
+                // Return true if changes were saved, false otherwise
+                Navigator.pop(context, _hasUnsavedChanges);
+              },
+            ),
           ),
-          child: IconButton(
-            icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-          ),
-        ),
         title: Text(
           "Váš profil",
           style: TextStyle(
@@ -205,6 +224,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               ),
                                             ),
                                     ),
+                                    if (!_isEditing)
+                                      IconButton(
+                                        icon: Icon(Icons.copy, color: Colors.white70, size: 20),
+                                        onPressed: () => _copyToClipboard(_usernameController.text),
+                                        tooltip: 'Kopírovat jméno',
+                                        padding: EdgeInsets.zero,
+                                        constraints: BoxConstraints(),
+                                      ),
                                   ],
                                 ),
                                 SizedBox(height: 12),
@@ -219,13 +246,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         fontSize: 16,
                                       ),
                                     ),
-                                    Text(
-                                      userIdDisplay,
-                                      style: TextStyle(
-                                        fontFamily: 'Jura',
-                                        color: Colors.white70,
-                                        fontSize: 16,
+                                    Expanded(
+                                      child: Text(
+                                        userIdDisplay,
+                                        style: TextStyle(
+                                          fontFamily: 'Jura',
+                                          color: Colors.white70,
+                                          fontSize: 16,
+                                        ),
                                       ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.copy, color: Colors.white70, size: 20),
+                                      onPressed: _userId != null ? () => _copyToClipboard(_userId!) : null,
+                                      tooltip: 'Kopírovat ID',
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints(),
                                     ),
                                   ],
                                 ),
@@ -277,6 +313,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 }

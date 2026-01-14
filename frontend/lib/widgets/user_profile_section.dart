@@ -4,8 +4,14 @@ import '../screens/profile_screen.dart';
 class UserProfileSection extends StatelessWidget {
   final String currentUser;
   final String? userId;
+  final VoidCallback? onProfileUpdated;
 
-  const UserProfileSection({super.key, required this.currentUser, this.userId});
+  const UserProfileSection({
+    super.key, 
+    required this.currentUser, 
+    this.userId,
+    this.onProfileUpdated,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,11 +21,16 @@ class UserProfileSection extends StatelessWidget {
         : '#N/A';
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        // Navigate to profile and wait for result
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => ProfileScreen()),
         );
+        // If profile was updated, notify parent to refresh
+        if (result == true && onProfileUpdated != null) {
+          onProfileUpdated!();
+        }
       },
       child: Row(
         children: [
@@ -42,11 +53,16 @@ class UserProfileSection extends StatelessWidget {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  // Navigate to profile and wait for result
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => ProfileScreen()),
                   );
+                  // If profile was updated, notify parent to refresh
+                  if (result == true && onProfileUpdated != null) {
+                    onProfileUpdated!();
+                  }
                 },
                 child: Text(
                   userIdDisplay,
