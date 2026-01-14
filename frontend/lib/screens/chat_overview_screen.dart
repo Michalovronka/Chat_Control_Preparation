@@ -102,15 +102,25 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
           
           setState(() {
             _roomOwnerId = firstUserId;
+            // Normalize room ID for comparison (remove # and trim)
+            final normalizedRoomId = roomIdToUse.replaceAll('#', '').trim();
+            
             participants = users.map((user) {
               final userId = user['id'] ?? user['Id'];
               final userName = user['userName'] ?? user['UserName'] ?? 'Unknown';
               final userState = user['userState'] ?? user['UserState'] ?? 'Offline';
-              print('Participant: $userName (ID: $userId, State: $userState)');
+              final currentRoomIdRaw = user['currentRoomId'] ?? user['CurrentRoomId'];
+              final currentRoomId = currentRoomIdRaw != null ? currentRoomIdRaw.toString().replaceAll('#', '').trim() : null;
+              
+              // Check if user is currently in this room
+              final isInRoom = currentRoomId != null && currentRoomId == normalizedRoomId;
+              
+              print('Participant: $userName (ID: $userId, State: $userState, CurrentRoomId: $currentRoomId, InRoom: $isInRoom)');
               return {
                 'id': userId?.toString() ?? '',
                 'name': userName,
-                'status': _mapUserStateToParticipantStatus(userState),
+                'status': isInRoom ? ParticipantStatus.online : ParticipantStatus.offline, // Green if in room, gray if away
+                'isInRoom': isInRoom,
               };
             }).where((p) => p['id'] != null && p['id']!.isNotEmpty).toList();
           });
@@ -151,17 +161,6 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
     }
   }
 
-  ParticipantStatus _mapUserStateToParticipantStatus(String userState) {
-    switch (userState.toLowerCase()) {
-      case 'online':
-        return ParticipantStatus.online;
-      case 'away':
-        return ParticipantStatus.away;
-      case 'offline':
-      default:
-        return ParticipantStatus.offline;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

@@ -101,7 +101,8 @@ public class UserController : ControllerBase
                 UserName = u.UserName,
                 StatusMessage = u.StatusMessage ?? "",
                 UserState = u.UserState,
-                LastTimeSeen = u.LastTimeSeen
+                LastTimeSeen = u.LastTimeSeen,
+                CurrentRoomId = u.CurrentRoomId
             })
             .ToList();
 
