@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 class ConsoleSection extends StatelessWidget {
   final TextEditingController consoleController;
@@ -24,38 +25,54 @@ class ConsoleSection extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.2),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 12,
+                        spreadRadius: 2,
                       ),
-                    ),
-                    child: TextField(
-                      controller: consoleController,
-                      style: TextStyle(
-                        fontFamily: 'Jura',
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: "Zadejte příkaz...",
-                        hintStyle: TextStyle(
-                          fontFamily: 'Jura',
-                          color: Colors.white70,
-                          fontSize: 16,
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1.5,
+                          ),
                         ),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.terminal,
-                          color: Colors.white70,
+                        child: TextField(
+                          controller: consoleController,
+                          style: TextStyle(
+                            fontFamily: 'Jura',
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: "Zadejte příkaz...",
+                            hintStyle: TextStyle(
+                              fontFamily: 'Jura',
+                              color: Colors.white70,
+                              fontSize: 16,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.terminal,
+                              color: Colors.white70,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -67,6 +84,13 @@ class ConsoleSection extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ],
                 ),
                 child: IconButton(
                   icon: Icon(Icons.send, color: Colors.white, size: 24),

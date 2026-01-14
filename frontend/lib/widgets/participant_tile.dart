@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../screens/chat_screen.dart';
 import '../services/signalr_service.dart';
 import 'user_info_dialog.dart';
@@ -34,10 +35,29 @@ class ParticipantTile extends StatelessWidget {
     return Container(
       margin: EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
       ),
-      child: ListTile(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: ListTile(
         onTap: participantId != null
             ? () {
                 // Show user info dialog when tapping on the tile
@@ -163,6 +183,9 @@ class ParticipantTile extends StatelessWidget {
                 },
               ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );

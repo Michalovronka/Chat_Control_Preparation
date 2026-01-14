@@ -32,7 +32,7 @@ class GlassMessageBubble extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
             child: Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(

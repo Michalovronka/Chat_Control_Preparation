@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui';
 import '../widgets/logout_button.dart';
 import '../services/app_state.dart';
 import '../services/user_service.dart';
@@ -111,15 +112,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
           leading: Container(
             margin: EdgeInsets.only(left: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-            child: IconButton(
-              icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
-              onPressed: () {
-                // Return true if changes were saved, false otherwise
-                Navigator.pop(context, _hasUnsavedChanges);
-              },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(50),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                    onPressed: () {
+                      // Return true if changes were saved, false otherwise
+                      Navigator.pop(context, _hasUnsavedChanges);
+                    },
+                  ),
+                ),
+              ),
             ),
           ),
         title: Text(
@@ -168,15 +191,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           SizedBox(height: 24),
                           // Kartička s informacemi
                           Container(
-                            padding: EdgeInsets.all(16),
                             margin: EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                ),
+                              ],
                             ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                                child: Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.2),
+                                      width: 1.5,
+                                    ),
+                                  ),
                             child: Column(
                               children: [
                                 // Uživatelské jméno
@@ -266,36 +305,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ],
                                 ),
                               ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                           SizedBox(height: 24),
                           // Tlačítko Upravit/Uložit
                           Container(
                             margin: EdgeInsets.only(top: 16),
-                            child: ElevatedButton(
-                              onPressed: () {
-                                if (_isEditing) {
-                                  _saveUsername();
-                                } else {
-                                  setState(() {
-                                    _isEditing = true;
-                                  });
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white.withOpacity(0.2),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
                                 ),
-                                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                                minimumSize: Size(double.infinity, 50),
-                              ),
-                              child: Text(
-                                _isEditing ? "Uložit" : "Upravit",
-                                style: TextStyle(
-                                  fontFamily: 'Jura',
-                                  color: Colors.white,
-                                  fontSize: 16,
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                                child: InkWell(
+                                  onTap: () {
+                                    if (_isEditing) {
+                                      _saveUsername();
+                                    } else {
+                                      setState(() {
+                                        _isEditing = true;
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                    constraints: BoxConstraints(minHeight: 50),
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.2),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _isEditing ? "Uložit" : "Upravit",
+                                        style: TextStyle(
+                                          fontFamily: 'Jura',
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
