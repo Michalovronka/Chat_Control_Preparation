@@ -30,6 +30,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
   String? inviteCode;
   bool _isLoading = true;
   String? _currentUserId;
+  String? _roomOwnerId; // ID of the room owner (first user in JoinedUsers list)
   SignalRService? _signalRService;
 
   @override
@@ -95,7 +96,12 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
       
       if (users != null) {
         if (users.isNotEmpty) {
+          // Room owner is the first user in the list (first user in JoinedUsers)
+          final firstUser = users.first;
+          final firstUserId = (firstUser['id'] ?? firstUser['Id'])?.toString();
+          
           setState(() {
+            _roomOwnerId = firstUserId;
             participants = users.map((user) {
               final userId = user['id'] ?? user['Id'];
               final userName = user['userName'] ?? user['UserName'] ?? 'Unknown';
@@ -108,7 +114,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
               };
             }).where((p) => p['id'] != null && p['id']!.isNotEmpty).toList();
           });
-          print('Loaded ${participants.length} participants');
+          print('Loaded ${participants.length} participants, room owner: $_roomOwnerId');
         } else {
           print('No users found in room (empty list)');
           setState(() {
@@ -364,6 +370,8 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                                             status: participants[index]["status"],
                                             roomId: widget.roomId,
                                             currentUserId: _currentUserId,
+                                            roomOwnerId: _roomOwnerId,
+                                            signalRService: _signalRService,
                                           ),
                                         );
                                       },

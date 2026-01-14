@@ -72,8 +72,24 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() {
           _messages.clear();
           
-          for (var msg in messages) {
-            final msgMap = msg as Map<String, dynamic>;
+          // Convert to list and sort by SentTime to ensure proper order
+          final messagesList = messages.map((msg) => msg as Map<String, dynamic>).toList();
+          
+          // Sort by SentTime (ascending - oldest first, newest last)
+          messagesList.sort((a, b) {
+            final timeA = (a['SentTime'] ?? a['sentTime'])?.toString() ?? '';
+            final timeB = (b['SentTime'] ?? b['sentTime'])?.toString() ?? '';
+            if (timeA.isEmpty || timeB.isEmpty) return 0;
+            try {
+              final dateA = DateTime.parse(timeA);
+              final dateB = DateTime.parse(timeB);
+              return dateA.compareTo(dateB);
+            } catch (e) {
+              return 0;
+            }
+          });
+          
+          for (var msgMap in messagesList) {
             // Try both PascalCase and camelCase property names
             final userId = (msgMap['UserId'] ?? msgMap['userId'])?.toString() ?? '';
             final userName = (msgMap['UserName'] ?? msgMap['userName'])?.toString();
@@ -103,6 +119,42 @@ class _ChatScreenState extends State<ChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $error')),
         );
+      });
+
+      // Listen for user kicked event
+      _signalRService.onUserKicked((data) {
+        print('User kicked event received: $data');
+        final roomId = (data['RoomId'] ?? data['roomId'])?.toString()?.replaceAll('#', '').trim();
+        final currentRoomId = _appState.currentRoomId?.replaceAll('#', '').trim();
+        
+        // Only handle if kicked from the current room
+        if (roomId != null && currentRoomId != null && roomId == currentRoomId) {
+          // Clear room from app state
+          _appState.clearRoom();
+          
+          // Stop SignalR connection
+          _signalRService.stop();
+          
+          // Show warning message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Byli jste vyhozeni z této místnosti'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+            
+            // Navigate back to home screen
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ConnectScreen(),
+              ),
+              (route) => false,
+            );
+          }
+        }
       });
 
       // Connect to SignalR

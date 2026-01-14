@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/chat_screen.dart';
+import '../services/signalr_service.dart';
 
 enum ParticipantStatus {
   online,
@@ -13,6 +14,8 @@ class ParticipantTile extends StatelessWidget {
   final String? participantId;
   final String? roomId;
   final String? currentUserId;
+  final String? roomOwnerId; // ID of the room owner
+  final SignalRService? signalRService; // SignalR service for kicking
 
   const ParticipantTile({
     super.key,
@@ -21,6 +24,8 @@ class ParticipantTile extends StatelessWidget {
     this.participantId,
     this.roomId,
     this.currentUserId,
+    this.roomOwnerId,
+    this.signalRService,
   });
 
   @override
@@ -85,34 +90,61 @@ class ParticipantTile extends StatelessWidget {
                     }
                   : null,
             ),
-            if (currentUserId != null && participantId != null && currentUserId != participantId)
+            // Only show kick button if current user is the room owner and not trying to kick themselves
+            if (currentUserId != null && 
+                participantId != null && 
+                currentUserId != participantId &&
+                roomOwnerId != null &&
+                currentUserId == roomOwnerId &&
+                signalRService != null &&
+                roomId != null)
               IconButton(
                 icon: Icon(Icons.exit_to_app, color: Colors.redAccent),
-                onPressed: () {
+                onPressed: () async {
                   // Show confirmation dialog for kicking user
-                  showDialog(
+                  final shouldKick = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
                       title: Text('Vyhodit uživatele'),
                       content: Text('Opravdu chcete vyhodit $participantName?'),
                       actions: [
                         TextButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () => Navigator.pop(context, false),
                           child: Text('Zrušit'),
                         ),
                         TextButton(
-                          onPressed: () {
-                            // TODO: Implement kick user functionality
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Funkce vyhození uživatele bude implementována')),
-                            );
-                          },
+                          onPressed: () => Navigator.pop(context, true),
                           child: Text('Vyhodit', style: TextStyle(color: Colors.red)),
                         ),
                       ],
                     ),
                   );
+
+                  if (shouldKick == true) {
+                    try {
+                      // Ensure SignalR is connected
+                      if (!signalRService!.isConnected) {
+                        await signalRService!.start();
+                        await Future.delayed(Duration(milliseconds: 500));
+                      }
+
+                      // Kick the user
+                      await signalRService!.sendKick(
+                        kickerUserId: currentUserId!,
+                        kickedUserId: participantId!,
+                        roomId: roomId!,
+                      );
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$participantName byl vyhozen z místnosti')),
+                      );
+                    } catch (e) {
+                      print('Error kicking user: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Chyba při vyhazování uživatele: $e')),
+                      );
+                    }
+                  }
                 },
               ),
           ],

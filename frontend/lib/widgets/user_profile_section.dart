@@ -3,11 +3,17 @@ import '../screens/profile_screen.dart';
 
 class UserProfileSection extends StatelessWidget {
   final String currentUser;
+  final String? userId;
 
-  const UserProfileSection({super.key, required this.currentUser});
+  const UserProfileSection({super.key, required this.currentUser, this.userId});
 
   @override
   Widget build(BuildContext context) {
+    // Format user ID for display (first 8 characters with # prefix)
+    final userIdDisplay = userId != null 
+        ? '#${userId!.length >= 8 ? userId!.substring(0, 8) : userId!}' 
+        : '#N/A';
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -43,10 +49,10 @@ class UserProfileSection extends StatelessWidget {
                   );
                 },
                 child: Text(
-                  currentUser,
+                  userIdDisplay,
                   style: TextStyle(
                     fontFamily: 'Jura',
-                    color: Colors.white,
+                    color: Colors.white70,
                     fontSize: 14,
                     decoration: TextDecoration.underline,
                   ),

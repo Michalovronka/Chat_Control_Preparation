@@ -150,8 +150,11 @@ public class ChatHub : Hub, IClientChatContracts
             room.JoinedUsers = new List<Guid>();
         }
 
+        // Check if user is joining for the first time (not already in JoinedUsers list)
+        var isFirstTimeJoin = !room.JoinedUsers.Contains(model.UserId);
+
         // Add user to room's JoinedUsers list if not already there
-        if (!room.JoinedUsers.Contains(model.UserId))
+        if (isFirstTimeJoin)
         {
             room.JoinedUsers.Add(model.UserId);
             _roomRepository.Update(room);
@@ -165,6 +168,35 @@ public class ChatHub : Hub, IClientChatContracts
         // Add to SignalR group
         var roomId = room.Id.Value;
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId.ToString());
+
+        // Send a join message to the room ONLY if this is the first time the user is joining
+        if (isFirstTimeJoin)
+        {
+            // Use a timestamp slightly in the future to ensure it appears as the most recent message
+            var joinMessageTime = DateTime.UtcNow.AddMilliseconds(1);
+            var joinMessageEntity = new MessageEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = model.UserId,
+                RoomId = model.RoomId,
+                Content = $"{user.UserName} se připojil k místnosti",
+                IsImage = false,
+                SentTime = joinMessageTime
+            };
+
+            _messageRepository.Add(joinMessageEntity);
+
+            // Send join message to all users in the room
+            await Clients.Group(roomId.ToString()).SendAsync("ReceiveMessage", new
+            {
+                UserId = model.UserId.ToString(),
+                UserName = user.UserName,
+                Content = joinMessageEntity.Content,
+                IsImage = "false",
+                RoomId = model.RoomId.ToString(),
+                SentTime = joinMessageTime.ToString("o") // Include timestamp
+            });
+        }
 
         // Notify others in the room
         var receiveModel = new ReceiveJoinModel(user.Id, roomId, room.Password ?? "");
@@ -489,5 +521,133 @@ public class ChatHub : Hub, IClientChatContracts
         
         var receiveModel = new ReceiveShowMessagesModel(user.CurrentRoomId.Value);
         await Clients.Caller.SendAsync("ReceiveShowMessages", receiveModel);
+    }
+
+    public async Task SendKick(SendKickModel model)
+    {
+        try
+        {
+            // Get the kicker (person who wants to kick)
+            var kicker = GetOrCreateUser(model.KickerUserId);
+            
+            // Get the room
+            var room = _roomRepository.GetById(model.RoomId);
+            if (room == null)
+            {
+                await Clients.Caller.SendAsync("Error", "Room not found");
+                return;
+            }
+
+            // Check if room has JoinedUsers list
+            if (room.JoinedUsers == null || !room.JoinedUsers.Any())
+            {
+                await Clients.Caller.SendAsync("Error", "Room has no users");
+                return;
+            }
+
+            // Room owner is the first user in JoinedUsers list
+            var roomOwnerId = room.JoinedUsers.First();
+            
+            // Only the room owner can kick users
+            if (model.KickerUserId != roomOwnerId)
+            {
+                await Clients.Caller.SendAsync("Error", "Only the room owner can kick users");
+                return;
+            }
+
+            // Cannot kick yourself
+            if (model.KickedUserId == model.KickerUserId)
+            {
+                await Clients.Caller.SendAsync("Error", "Cannot kick yourself");
+                return;
+            }
+
+            // Get the user to be kicked
+            var kickedUser = _userRepository.GetById(model.KickedUserId);
+            if (kickedUser == null)
+            {
+                await Clients.Caller.SendAsync("Error", "User to kick not found");
+                return;
+            }
+
+            // Check if user is in the room
+            if (!room.JoinedUsers.Contains(model.KickedUserId))
+            {
+                await Clients.Caller.SendAsync("Error", "User is not in this room");
+                return;
+            }
+
+            // Remove user from room's JoinedUsers list
+            room.JoinedUsers.Remove(model.KickedUserId);
+            _roomRepository.Update(room);
+
+            // Remove room from user's JoinedRooms list
+            if (kickedUser.JoinedRooms != null && kickedUser.JoinedRooms.Contains(model.RoomId))
+            {
+                kickedUser.JoinedRooms.Remove(model.RoomId);
+            }
+
+            // Clear user's current room if they're in it
+            if (kickedUser.CurrentRoomId == model.RoomId)
+            {
+                kickedUser.CurrentRoomId = null;
+            }
+
+            _userRepository.Update(kickedUser);
+
+            // Send a kick message to the room
+            var kickMessageTime = DateTime.UtcNow.AddMilliseconds(1);
+            var kickMessageEntity = new MessageEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = model.KickerUserId, // Message from the kicker
+                RoomId = model.RoomId,
+                Content = $"{kickedUser.UserName} byl vyhozen z místnosti",
+                IsImage = false,
+                SentTime = kickMessageTime
+            };
+
+            _messageRepository.Add(kickMessageEntity);
+
+            // Send kick message to all users in the room
+            var roomId = room.Id!.Value;
+            await Clients.Group(roomId.ToString()).SendAsync("ReceiveMessage", new
+            {
+                UserId = model.KickerUserId.ToString(),
+                UserName = kicker.UserName,
+                Content = kickMessageEntity.Content,
+                IsImage = "false",
+                RoomId = model.RoomId.ToString(),
+                SentTime = kickMessageTime.ToString("o")
+            });
+
+            // Remove kicked user from SignalR group
+            if (!string.IsNullOrEmpty(kickedUser.ConnectionId))
+            {
+                await Groups.RemoveFromGroupAsync(kickedUser.ConnectionId, roomId.ToString());
+            }
+
+            // Notify the kicked user
+            if (!string.IsNullOrEmpty(kickedUser.ConnectionId))
+            {
+                await Clients.Client(kickedUser.ConnectionId).SendAsync("UserKicked", new { RoomId = model.RoomId });
+            }
+
+            // Send leave notification to others
+            var receiveModel = new ReceiveLeaveModel(kickedUser.Id, model.RoomId);
+            await Clients.Group(roomId.ToString()).SendAsync("ReceiveLeave", receiveModel);
+
+            // If room is now empty, delete it
+            if (!room.JoinedUsers.Any())
+            {
+                _messageRepository.DeleteByRoomId(model.RoomId);
+                _roomRepository.Delete(model.RoomId);
+                await Clients.Group(roomId.ToString()).SendAsync("RoomDeleted", new { RoomId = model.RoomId });
+            }
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("Error", $"An error occurred while kicking the user: {ex.Message}");
+        }
     }
 }

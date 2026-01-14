@@ -140,7 +140,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
             child: Column(
               children: [
                 SizedBox(height: 60),
-                UserProfileSection(currentUser: currentUser),
+                UserProfileSection(currentUser: currentUser, userId: userId),
                 SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,

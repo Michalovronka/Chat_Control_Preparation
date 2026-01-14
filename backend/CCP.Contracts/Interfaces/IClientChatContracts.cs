@@ -18,4 +18,5 @@ public interface IClientChatContracts
     Task SendList(SendListModel model);
     Task SendActivity(SendActivityModel model);
     Task SendShowMessages(SendShowMessagesModel model);
+    Task SendKick(SendKickModel model);
 }

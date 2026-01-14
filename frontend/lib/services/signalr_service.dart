@@ -109,6 +109,26 @@ class SignalRService {
       rethrow;
     }
   }
+
+  // Kick user - matches SendKickModel: (Guid KickerUserId, Guid KickedUserId, Guid RoomId)
+  Future<void> sendKick({
+    required String kickerUserId,
+    required String kickedUserId,
+    required String roomId,
+  }) async {
+    try {
+      await _connection.invoke('SendKick', args: [
+        {
+          'KickerUserId': kickerUserId,
+          'KickedUserId': kickedUserId,
+          'RoomId': roomId,
+        }
+      ]);
+    } catch (e) {
+      print('Error kicking user: $e');
+      rethrow;
+    }
+  }
   
   // Listen to messages
   void onReceiveMessage(Function(Map<String, dynamic>) callback) {
@@ -204,6 +224,15 @@ class SignalRService {
   // Listen to receive leave
   void onReceiveLeave(Function(Map<String, dynamic>) callback) {
     _connection.on('ReceiveLeave', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        callback(arguments[0] as Map<String, dynamic>);
+      }
+    });
+  }
+
+  // Listen to user kicked event
+  void onUserKicked(Function(Map<String, dynamic>) callback) {
+    _connection.on('UserKicked', (arguments) {
       if (arguments != null && arguments.isNotEmpty) {
         callback(arguments[0] as Map<String, dynamic>);
       }
