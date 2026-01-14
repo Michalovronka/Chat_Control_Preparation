@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Pro kopírování do schránky
 import 'dart:ui';
 import 'chat_screen.dart';
-import 'create_group_chat_screen.dart';
 import '../services/room_service.dart';
 import '../services/app_state.dart';
 

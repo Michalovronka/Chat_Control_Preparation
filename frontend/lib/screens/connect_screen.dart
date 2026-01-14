@@ -28,6 +28,15 @@ class _ConnectScreenState extends State<ConnectScreen> {
     _initializeUser();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh rooms when screen becomes visible again
+    if (!_isInitializing) {
+      refreshRooms();
+    }
+  }
+
   // Method to refresh rooms (can be called when returning to screen)
   void refreshRooms() {
     if (!_isInitializing && _appState.currentUserId != null) {

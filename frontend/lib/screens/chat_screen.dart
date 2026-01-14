@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import '../widgets/glass_message_bubble.dart';
-import 'chat_overview_screen.dart';
 import '../widgets/chat_app_bar.dart';
 import '../widgets/message_input_section.dart';
 import '../widgets/message_bubble_builder.dart';
 import '../widgets/chat_background.dart';
 import '../services/signalr_service.dart';
 import '../services/app_state.dart';
+import 'connect_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String groupName;
@@ -74,6 +71,7 @@ class _ChatScreenState extends State<ChatScreen> {
         print('Loaded messages: $messages'); // Debug
         setState(() {
           _messages.clear();
+          
           for (var msg in messages) {
             final msgMap = msg as Map<String, dynamic>;
             // Try both PascalCase and camelCase property names
@@ -144,17 +142,42 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _handleBackNavigation() async {
+    final roomId = _appState.currentRoomId;
+    
+    // Just leave the room and navigate back (temporary leave - user stays in lists)
+    if (_isConnected && _appState.currentUserId != null && roomId != null) {
+      try {
+        await _signalRService.sendLeave(
+          userId: _appState.currentUserId!,
+          roomId: roomId,
+          permanentLeave: false, // Back arrow = temporary leave
+        );
+        print('Left room via SignalR (temporary)');
+      } catch (e) {
+        print('Error leaving room: $e');
+      }
+    }
+    
+    // Navigate back and refresh rooms list
+    if (mounted) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+        // Refresh rooms when returning to previous screen
+        // This will be handled by didChangeDependencies in ConnectScreen
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ConnectScreen(),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
-    // Leave the room before disposing (fire and forget)
-    if (_isConnected && _appState.currentUserId != null && _appState.currentRoomId != null) {
-      _signalRService.sendLeave(
-        userId: _appState.currentUserId!,
-        roomId: _appState.currentRoomId!,
-      ).catchError((e) {
-        print('Error leaving room on dispose: $e');
-      });
-    }
     _signalRService.stop();
     _messageController.dispose();
     _scrollController.dispose();
@@ -255,17 +278,23 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: ChatAppBar(
-        chatName: widget.groupName, 
-        chatId: widget.roomId != null 
-            ? '#${widget.roomId!.length >= 8 ? widget.roomId!.substring(0, 8) : widget.roomId!}' 
-            : "#31161213",
-        fullRoomId: widget.roomId, // Pass full room ID for API calls
-        signalRService: _signalRService,
-      ),
-      body: Stack(
+    return WillPopScope(
+      onWillPop: () async {
+        await _handleBackNavigation();
+        return false; // Prevent default navigation, we handle it ourselves
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: ChatAppBar(
+          chatName: widget.groupName, 
+          chatId: widget.roomId != null 
+              ? '#${widget.roomId!.length >= 8 ? widget.roomId!.substring(0, 8) : widget.roomId!}' 
+              : "#31161213",
+          fullRoomId: widget.roomId, // Pass full room ID for API calls
+          signalRService: _signalRService,
+          onBackPressed: _handleBackNavigation, // Handle back button in AppBar
+        ),
+        body: Stack(
         children: [
           ChatBackground(),
           Positioned.fill(
@@ -297,6 +326,7 @@ class _ChatScreenState extends State<ChatScreen> {
             onAttachPressed: _pickImage,
           ),
         ],
+      ),
       ),
     );
   }

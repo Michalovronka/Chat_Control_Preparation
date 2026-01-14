@@ -18,7 +18,7 @@ class ChatTile extends StatelessWidget {
           ),
         ).then((_) {
           // Refresh rooms list when returning from chat
-          // This will be handled by the parent screen if needed
+          // The ConnectScreen's didChangeDependencies will handle this
         });
       },
       child: Container(

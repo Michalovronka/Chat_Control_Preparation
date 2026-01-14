@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../widgets/logout_button.dart';
 import '../services/app_state.dart';
 import '../services/user_service.dart';

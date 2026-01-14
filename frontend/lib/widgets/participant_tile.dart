@@ -94,7 +94,7 @@ class ParticipantTile extends StatelessWidget {
                     context: context,
                     builder: (context) => AlertDialog(
                       title: Text('Vyhodit uživatele'),
-                      content: Text('Opravdu chcete vyhodit ${participantName}?'),
+                      content: Text('Opravdu chcete vyhodit $participantName?'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),

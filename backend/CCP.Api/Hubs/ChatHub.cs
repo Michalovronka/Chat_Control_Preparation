@@ -132,6 +132,31 @@ public class ChatHub : Hub, IClientChatContracts
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, user.CurrentRoomId.Value.ToString());
         }
 
+        // Initialize JoinedRooms if null
+        if (user.JoinedRooms == null)
+        {
+            user.JoinedRooms = new List<Guid>();
+        }
+
+        // Add room to user's JoinedRooms list if not already there
+        if (!user.JoinedRooms.Contains(model.RoomId))
+        {
+            user.JoinedRooms.Add(model.RoomId);
+        }
+
+        // Initialize JoinedUsers if null
+        if (room.JoinedUsers == null)
+        {
+            room.JoinedUsers = new List<Guid>();
+        }
+
+        // Add user to room's JoinedUsers list if not already there
+        if (!room.JoinedUsers.Contains(model.UserId))
+        {
+            room.JoinedUsers.Add(model.UserId);
+            _roomRepository.Update(room);
+        }
+
         // Update user's current room
         user.CurrentRoomId = model.RoomId;
         user.ConnectionId = Context.ConnectionId;
@@ -148,22 +173,91 @@ public class ChatHub : Hub, IClientChatContracts
 
     public async Task SendLeave(SendLeaveModel model)
     {
-        var user = GetOrCreateUser(model.UserId);
-        
-        if (user.CurrentRoomId != model.RoomId)
+        try
         {
-            await Clients.Caller.SendAsync("Error", "User not in the specified room");
-            return;
+            var user = GetOrCreateUser(model.UserId);
+            
+            // For permanent leave, allow even if CurrentRoomId doesn't match (user might be in a different state)
+            // For temporary leave, check CurrentRoomId
+            if (!model.PermanentLeave && user.CurrentRoomId != model.RoomId)
+            {
+                await Clients.Caller.SendAsync("Error", "User not in the specified room");
+                return;
+            }
+
+            // Get the room
+            var room = _roomRepository.GetById(model.RoomId);
+            if (room == null)
+            {
+                await Clients.Caller.SendAsync("Error", "Room not found");
+                return;
+            }
+
+            // Remove from SignalR group first (before any potential room deletion)
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, model.RoomId.ToString());
+
+            // Send leave notification before potentially deleting the room
+            var receiveModel = new ReceiveLeaveModel(user.Id, model.RoomId);
+            await Clients.Group(model.RoomId.ToString()).SendAsync("ReceiveLeave", receiveModel);
+
+            // Clear current room (user navigates away)
+            user.CurrentRoomId = null;
+            user.ConnectionId = Context.ConnectionId;
+
+            // If permanent leave (leave button), remove from both lists
+            if (model.PermanentLeave)
+            {
+                // Initialize lists if null (shouldn't happen, but safety check)
+                if (user.JoinedRooms == null)
+                {
+                    user.JoinedRooms = new List<Guid>();
+                }
+                if (room.JoinedUsers == null)
+                {
+                    room.JoinedUsers = new List<Guid>();
+                }
+
+                // Remove room from user's JoinedRooms list
+                if (user.JoinedRooms.Contains(model.RoomId))
+                {
+                    user.JoinedRooms.Remove(model.RoomId);
+                }
+
+                // Remove user from room's JoinedUsers list
+                if (room.JoinedUsers.Contains(model.UserId))
+                {
+                    room.JoinedUsers.Remove(model.UserId);
+                    _roomRepository.Update(room);
+                }
+
+                // If room's JoinedUsers list is empty, delete the room
+                // Note: We already sent the ReceiveLeave message, so deletion is safe
+                if (room.JoinedUsers == null || !room.JoinedUsers.Any())
+                {
+                    // Delete all messages for this room first (to avoid foreign key constraint)
+                    _messageRepository.DeleteByRoomId(model.RoomId);
+                    // Then delete the room
+                    _roomRepository.Delete(model.RoomId);
+                    // Notify remaining clients (if any) that room was deleted
+                    try
+                    {
+                        await Clients.Group(model.RoomId.ToString()).SendAsync("RoomDeleted", new { RoomId = model.RoomId });
+                    }
+                    catch
+                    {
+                        // Ignore if group doesn't exist (room already deleted)
+                    }
+                }
+            }
+            // If temporary leave (back arrow), user stays in both lists, just CurrentRoomId is cleared
+
+            _userRepository.Update(user);
         }
-
-        user.CurrentRoomId = null;
-        user.ConnectionId = Context.ConnectionId;
-        _userRepository.Update(user);
-
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, model.RoomId.ToString());
-
-        var receiveModel = new ReceiveLeaveModel(user.Id, model.RoomId);
-        await Clients.Group(model.RoomId.ToString()).SendAsync("ReceiveLeave", receiveModel);
+        catch (Exception ex)
+        {
+            // Log the error and send a generic error message
+            await Clients.Caller.SendAsync("Error", $"An error occurred while leaving the room: {ex.Message}");
+        }
     }
 
     public async Task SendWho(SendWhoModel model)

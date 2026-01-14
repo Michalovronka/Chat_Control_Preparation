@@ -9,10 +9,12 @@ namespace CCP.Api.Controllers;
 public class UserController : ControllerBase
 {
     private readonly IUserRepository _userRepository;
+    private readonly IRoomRepository _roomRepository;
 
-    public UserController(IUserRepository userRepository)
+    public UserController(IUserRepository userRepository, IRoomRepository roomRepository)
     {
         _userRepository = userRepository;
+        _roomRepository = roomRepository;
     }
 
     [HttpPost("create")]
@@ -82,11 +84,20 @@ public class UserController : ControllerBase
             return BadRequest(new { Error = "Invalid room ID format" });
         }
 
-        var users = _userRepository.GetAll()
-            .Where(u => u.CurrentRoomId.HasValue && u.CurrentRoomId.Value == roomGuid)
+        // Get room to access JoinedUsers list
+        var room = _roomRepository.GetById(roomGuid);
+        if (room == null || room.JoinedUsers == null || !room.JoinedUsers.Any())
+        {
+            return Ok(new List<object>());
+        }
+
+        // Get users from room's JoinedUsers list
+        var users = room.JoinedUsers
+            .Select(userId => _userRepository.GetById(userId))
+            .Where(u => u != null)
             .Select(u => new
             {
-                Id = u.Id,
+                Id = u!.Id,
                 UserName = u.UserName,
                 StatusMessage = u.StatusMessage ?? "",
                 UserState = u.UserState,

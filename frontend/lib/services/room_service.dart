@@ -113,4 +113,47 @@ class RoomService {
       return null;
     }
   }
+
+  // Check if room has messages
+  static Future<bool?> roomHasMessages(String roomId) async {
+    try {
+      final encodedRoomId = Uri.encodeComponent(roomId);
+      final response = await http.get(
+        Uri.parse('$baseUrl/$encodedRoomId/has-messages'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        return result['hasMessages'] ?? result['HasMessages'] ?? false;
+      } else {
+        print('Failed to check room messages: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error checking room messages: $e');
+      return null;
+    }
+  }
+
+  // Delete a room
+  static Future<bool> deleteRoom(String roomId) async {
+    try {
+      final encodedRoomId = Uri.encodeComponent(roomId);
+      final response = await http.delete(
+        Uri.parse('$baseUrl/$encodedRoomId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print('Failed to delete room: ${response.statusCode} - ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error deleting room: $e');
+      return false;
+    }
+  }
 }

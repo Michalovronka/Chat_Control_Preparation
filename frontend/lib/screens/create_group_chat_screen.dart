@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'chat_screen.dart';
 import 'group_chat_invite_screen.dart';
 
 class CreateGroupChatScreen extends StatefulWidget {

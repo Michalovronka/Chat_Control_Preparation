@@ -7,7 +7,6 @@ import '../services/room_service.dart';
 import '../services/app_state.dart';
 import '../services/signalr_service.dart';
 import 'connect_screen.dart';
-import 'chat_screen.dart';
 
 class ChatOverviewScreen extends StatefulWidget {
   final String chatName;
@@ -219,60 +218,81 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                         ),
                         child: IconButton(
                           onPressed: () async {
-                            // Leave the room via SignalR
-                            if (widget.roomId != null && _currentUserId != null) {
-                              try {
-                                // Use existing SignalR service if available, otherwise create new one
-                                SignalRService? signalRService = _signalRService;
-                                bool shouldStop = false;
-                                
-                                if (signalRService == null) {
-                                  signalRService = SignalRService();
-                                  await signalRService.start();
-                                  shouldStop = true;
-                                  // Wait a bit for connection to establish
-                                  await Future.delayed(Duration(milliseconds: 500));
-                                } else {
-                                  // If service exists, ensure it's connected
-                                  if (!signalRService.isConnected) {
-                                    await signalRService.start();
-                                    // Wait a bit for connection to establish
-                                    await Future.delayed(Duration(milliseconds: 500));
-                                  }
-                                }
-                                
-                                String roomIdToUse = widget.roomId!.replaceAll('#', '').trim();
-                                print('Leaving room: $roomIdToUse as user: $_currentUserId');
-                                
-                                await signalRService.sendLeave(
-                                  userId: _currentUserId!,
-                                  roomId: roomIdToUse,
-                                );
-                                
-                                print('Successfully left room');
-                                
-                                if (shouldStop) {
-                                  await signalRService.stop();
-                                }
-                              } catch (e) {
-                                print('Error leaving room: $e');
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Chyba při opouštění místnosti: $e')),
-                                );
-                              }
+                            String? roomIdToUse = widget.roomId?.replaceAll('#', '').trim();
+                            
+                            if (roomIdToUse == null || _currentUserId == null) {
+                              return;
                             }
                             
-                            // Clear room from app state
-                            _appState.clearRoom();
-                            
-                            // Navigate back to home
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ConnectScreen(),
-                              ),
-                              (route) => false,
-                            );
+                            try {
+                              // Use existing SignalR service if available, otherwise create new one
+                              SignalRService? signalRService = _signalRService;
+                              bool shouldStop = false;
+                              
+                              if (signalRService == null) {
+                                signalRService = SignalRService();
+                                await signalRService.start();
+                                shouldStop = true;
+                                // Wait a bit for connection to establish
+                                await Future.delayed(Duration(milliseconds: 500));
+                              } else {
+                                // If service exists, ensure it's connected
+                                if (!signalRService.isConnected) {
+                                  await signalRService.start();
+                                  // Wait a bit for connection to establish
+                                  await Future.delayed(Duration(milliseconds: 500));
+                                }
+                              }
+                              
+                              // Get user name for the leave message
+                              final userName = _appState.currentUserName ?? 'Uživatel';
+                              
+                              // Send a leave message to the room before leaving
+                              print('Sending leave message to room: $roomIdToUse');
+                              try {
+                                await signalRService.sendMessage(
+                                  userId: _currentUserId!,
+                                  content: '$userName opustil místnost',
+                                  roomId: roomIdToUse,
+                                );
+                                print('Leave message sent');
+                                // Wait a moment for message to be sent
+                                await Future.delayed(Duration(milliseconds: 200));
+                              } catch (e) {
+                                print('Error sending leave message: $e');
+                                // Continue even if message sending fails
+                              }
+                              
+                              // Leave the room via SignalR (permanent leave - remove from lists)
+                              print('Leaving room: $roomIdToUse as user: $_currentUserId');
+                              await signalRService.sendLeave(
+                                userId: _currentUserId!,
+                                roomId: roomIdToUse,
+                                permanentLeave: true, // Leave button = permanent leave
+                              );
+                              print('Successfully left room (permanent)');
+                              
+                              if (shouldStop) {
+                                await signalRService.stop();
+                              }
+                              
+                              // Clear room from app state
+                              _appState.clearRoom();
+                              
+                              // Navigate back to home
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ConnectScreen(),
+                                ),
+                                (route) => false,
+                              );
+                            } catch (e) {
+                              print('Error leaving/deleting room: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Chyba při opouštění místnosti: $e')),
+                              );
+                            }
                           },
                           icon: Icon(
                             Icons.exit_to_app,

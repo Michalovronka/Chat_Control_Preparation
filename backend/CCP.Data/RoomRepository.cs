@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using CCP.Domain.Entities;
 
@@ -21,9 +23,9 @@ namespace CCP.Data
 
             const string sql = @"
             INSERT INTO Rooms
-            (Id, Name, PasswordHash, InviteCode)
+            (Id, Name, PasswordHash, InviteCode, JoinedUsers)
             VALUES
-            (@Id, @Name, @PasswordHash, @InviteCode);";
+            (@Id, @Name, @PasswordHash, @InviteCode, @JoinedUsers);";
 
             using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", room.Id.ToString());
@@ -32,6 +34,9 @@ namespace CCP.Data
                 (object?)room.Password ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@InviteCode",
                 (object?)room.InviteCode ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@JoinedUsers", room.JoinedUsers != null && room.JoinedUsers.Any() 
+                ? JsonSerializer.Serialize(room.JoinedUsers) 
+                : (object?)DBNull.Value);
 
             cmd.ExecuteNonQuery();
         }
@@ -130,7 +135,8 @@ namespace CCP.Data
             UPDATE Rooms SET
                 Name = @Name,
                 PasswordHash = @PasswordHash,
-                InviteCode = @InviteCode
+                InviteCode = @InviteCode,
+                JoinedUsers = @JoinedUsers
             WHERE Id = @Id;";
 
             using var cmd = new SqliteCommand(sql, conn);
@@ -140,6 +146,9 @@ namespace CCP.Data
                 (object?)room.Password ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@InviteCode",
                 (object?)room.InviteCode ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@JoinedUsers", room.JoinedUsers != null && room.JoinedUsers.Any() 
+                ? JsonSerializer.Serialize(room.JoinedUsers) 
+                : (object?)DBNull.Value);
 
             cmd.ExecuteNonQuery();
         }
@@ -165,6 +174,20 @@ namespace CCP.Data
         // ========================
         private static RoomEntity MapRoom(SqliteDataReader reader)
         {
+            var joinedUsersJson = reader["JoinedUsers"] == DBNull.Value ? null : reader["JoinedUsers"].ToString();
+            List<Guid> joinedUsers = new List<Guid>();
+            if (!string.IsNullOrEmpty(joinedUsersJson))
+            {
+                try
+                {
+                    joinedUsers = JsonSerializer.Deserialize<List<Guid>>(joinedUsersJson) ?? new List<Guid>();
+                }
+                catch
+                {
+                    joinedUsers = new List<Guid>();
+                }
+            }
+
             return new RoomEntity
             {
                 Id = Guid.Parse(reader["Id"].ToString()!),
@@ -174,7 +197,8 @@ namespace CCP.Data
                     : reader["PasswordHash"].ToString(),
                 InviteCode = reader["InviteCode"] == DBNull.Value
                     ? null
-                    : reader["InviteCode"].ToString()
+                    : reader["InviteCode"].ToString(),
+                JoinedUsers = joinedUsers
             };
         }
     }

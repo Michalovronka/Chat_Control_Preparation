@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 
 /// Simple state management for current user and room

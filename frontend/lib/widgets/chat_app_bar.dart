@@ -8,6 +8,7 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String chatId; // Display ID (shortened)
   final String? fullRoomId; // Full room GUID for API calls
   final SignalRService? signalRService;
+  final VoidCallback? onBackPressed; // Callback for back button
 
   const ChatAppBar({
     super.key, 
@@ -15,6 +16,7 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.chatId,
     this.fullRoomId,
     this.signalRService,
+    this.onBackPressed,
   });
 
   @override
@@ -31,15 +33,20 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: IconButton(
           icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
           onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
+            // Use callback if provided, otherwise default behavior
+            if (onBackPressed != null) {
+              onBackPressed!();
             } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ConnectScreen(),
-                ),
-              );
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ConnectScreen(),
+                  ),
+                );
+              }
             }
           },
         ),

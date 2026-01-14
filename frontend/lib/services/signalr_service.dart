@@ -88,11 +88,12 @@ class SignalRService {
     }
   }
 
-  // Leave room - matches SendLeaveModel: (Guid UserId, Guid RoomId, string? Message)
+  // Leave room - matches SendLeaveModel: (Guid UserId, Guid RoomId, string? Message, bool PermanentLeave)
   Future<void> sendLeave({
     required String userId,
     required String roomId,
     String? message,
+    bool permanentLeave = false, // true for leave button, false for back arrow
   }) async {
     try {
       await _connection.invoke('SendLeave', args: [
@@ -100,6 +101,7 @@ class SignalRService {
           'UserId': userId,
           'RoomId': roomId,
           'Message': message,
+          'PermanentLeave': permanentLeave,
         }
       ]);
     } catch (e) {
