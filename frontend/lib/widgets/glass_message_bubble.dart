@@ -37,13 +37,13 @@ class GlassMessageBubble extends StatelessWidget {
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isMe
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.white.withOpacity(0.15),
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: isMe
                       ? const Color.fromARGB(255, 0, 255, 170)
-                      : Colors.white.withOpacity(0.2),
+                      : Colors.white.withOpacity(0.15),
                   width: 1.5,
                 ),
               ),

@@ -17,10 +17,10 @@ class ForumCodeInput extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withOpacity(0.08),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.15),
               ),
             ),
             child: TextField(

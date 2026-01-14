@@ -47,11 +47,12 @@ class SignalRService {
     }
   }
   
-  // Send message - matches SendMessageModel: (Guid RoomId, Guid UserId, string Content, DateTime SentTime)
+  // Send message - matches SendMessageModel: (Guid RoomId, Guid UserId, string Content, string IsImage, DateTime SentTime)
   Future<void> sendMessage({
     required String userId,
     required String content,
     required String roomId,
+    bool isImage = false,
   }) async {
     try {
       await _connection.invoke('SendMessage', args: [
@@ -59,6 +60,7 @@ class SignalRService {
           'RoomId': roomId,
           'UserId': userId,
           'Content': content,
+          'IsImage': isImage ? 'true' : 'false',
           'SentTime': DateTime.now().toIso8601String(),
         }
       ]);

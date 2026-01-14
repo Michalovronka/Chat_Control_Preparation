@@ -363,10 +363,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
                                         child: Container(
                                           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                           decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(0.15),
+                                            color: Colors.white.withOpacity(0.08),
                                             borderRadius: BorderRadius.circular(12),
                                             border: Border.all(
-                                              color: Colors.white.withOpacity(0.2),
+                                              color: Colors.white.withOpacity(0.08),
                                               width: 1.5,
                                             ),
                                           ),
@@ -374,7 +374,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                                             children: [
                                               CircleAvatar(
                                                 radius: 18,
-                                                backgroundColor: Colors.white.withOpacity(0.2),
+                                                backgroundColor: Colors.white.withOpacity(0.1),
                                                 child: Icon(Icons.forum, color: Colors.white, size: 18),
                                               ),
                                               SizedBox(width: 10),

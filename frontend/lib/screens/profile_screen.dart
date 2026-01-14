@@ -127,15 +127,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withOpacity(0.08),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withOpacity(0.08),
                       width: 1.5,
                     ),
                   ),
                   child: IconButton(
                     icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(),
                     onPressed: () {
                       // Return true if changes were saved, false otherwise
                       Navigator.pop(context, _hasUnsavedChanges);
@@ -185,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           // Profilová fotka
                           CircleAvatar(
                             radius: 50,
-                            backgroundColor: Colors.white.withOpacity(0.2),
+                            backgroundColor: Colors.white.withOpacity(0.1),
                             child: Icon(Icons.person, size: 50, color: Colors.white),
                           ),
                           SizedBox(height: 24),
@@ -209,10 +212,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: Container(
                                   padding: EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.15),
+                                    color: Colors.white.withOpacity(0.08),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: Colors.white.withOpacity(0.2),
+                                      color: Colors.white.withOpacity(0.08),
                                       width: 1.5,
                                     ),
                                   ),
@@ -235,10 +238,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           ? Container(
                                               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                               decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.15),
+                                                color: Colors.white.withOpacity(0.08),
                                                 borderRadius: BorderRadius.circular(8),
                                                 border: Border.all(
-                                                  color: Colors.white.withOpacity(0.2),
+                                                  color: Colors.white.withOpacity(0.08),
                                                 ),
                                               ),
                                               child: TextField(
@@ -344,10 +347,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     constraints: BoxConstraints(minHeight: 50),
                                     width: double.infinity,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
+                                      color: Colors.white.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
+                                        color: Colors.white.withOpacity(0.08),
                                         width: 1.5,
                                       ),
                                     ),

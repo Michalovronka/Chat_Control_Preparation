@@ -84,13 +84,16 @@ public class ChatHub : Hub, IClientChatContracts
             return;
         }
 
+        // Determine if message is an image
+        var isImage = model.IsImage == "true" || model.IsImage == "True";
+
         var messageEntity = new MessageEntity
         {
             Id = Guid.NewGuid(),
             UserId = model.UserId,
             RoomId = model.RoomId,
             Content = model.Content,
-            IsImage = false,
+            IsImage = isImage,
             SentTime = model.SentTime
         };
 
@@ -102,7 +105,7 @@ public class ChatHub : Hub, IClientChatContracts
             UserId = model.UserId.ToString(),
             UserName = user.UserName,
             Content = model.Content,
-            IsImage = "false",
+            IsImage = isImage ? "true" : "false",
             RoomId = model.RoomId.ToString()
         });
     }
@@ -524,6 +527,7 @@ public class ChatHub : Hub, IClientChatContracts
                 UserId = m.UserId.ToString(),
                 UserName = messageUser?.UserName ?? $"User_{m.UserId.ToString().Substring(0, 8)}",
                 Content = m.Content,
+                IsImage = m.IsImage ? "true" : "false",
                 RoomId = m.RoomId.ToString(),
                 SentTime = m.SentTime.ToString("o") // ISO 8601 format
             };
@@ -536,7 +540,7 @@ public class ChatHub : Hub, IClientChatContracts
         await Clients.Caller.SendAsync("ReceiveShowMessages", receiveModel);
     }
 
-    public async Task RegisterConnection(RegisterConnectionModel model)
+    public Task RegisterConnection(RegisterConnectionModel model)
     {
         var user = _userRepository.GetById(model.UserId);
         if (user != null)
@@ -550,6 +554,7 @@ public class ChatHub : Hub, IClientChatContracts
         {
             Console.WriteLine($"[CONNECTION ERROR] User not found: {model.UserId}");
         }
+        return Task.CompletedTask;
     }
 
     public async Task SendKick(SendKickModel model)

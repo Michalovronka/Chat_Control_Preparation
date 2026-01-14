@@ -6,6 +6,7 @@ import '../widgets/message_bubble_builder.dart';
 import '../widgets/chat_background.dart';
 import '../services/signalr_service.dart';
 import '../services/app_state.dart';
+import '../services/image_service.dart';
 import 'connect_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -46,21 +47,23 @@ class _ChatScreenState extends State<ChatScreen> {
           final content = (message['Content'] ?? message['content'])?.toString() ?? '';
           final isImage = (message['IsImage'] ?? message['isImage'])?.toString() ?? 'false';
           
-          print('Parsed - userId: $userId, userName: $userName, content: "$content"'); // Debug
+          print('Parsed - userId: $userId, userName: $userName, content: "$content", isImage: $isImage'); // Debug
           
-          // Check if content is an image path
-          final bool isImageMessage = content.startsWith('[IMAGE]');
-          final String? imagePath = isImageMessage ? content.substring(7) : null;
+          // Check if message is an image
+          final bool isImageMessage = isImage == "true" || isImage == "True";
+          final String? imagePath = isImageMessage ? content : null;
           
           final isMe = userId == _appState.currentUserId;
+          final finalImagePath = imagePath != null ? ImageService.getImageUrl(imagePath) : null;
+          print('Adding message - isImage: $isImageMessage, imagePath: $finalImagePath, content: $content');
           _messages.add({
             "sender": isMe 
                 ? "${_appState.currentUserName ?? userName ?? 'You'} (you)" 
                 : (userName ?? "User $userId"),
             "content": isImageMessage ? "" : content,
             "isMe": isMe,
-            "isImage": isImageMessage || isImage == "true",
-            if (imagePath != null) "imagePath": imagePath,
+            "isImage": isImageMessage,
+            if (finalImagePath != null) "imagePath": finalImagePath,
           });
         });
         _scrollToBottom();
@@ -94,11 +97,12 @@ class _ChatScreenState extends State<ChatScreen> {
             final userId = (msgMap['UserId'] ?? msgMap['userId'])?.toString() ?? '';
             final userName = (msgMap['UserName'] ?? msgMap['userName'])?.toString();
             final content = (msgMap['Content'] ?? msgMap['content'])?.toString() ?? '';
-            print('Loaded message - userId: $userId, userName: $userName, content: "$content"'); // Debug
+            final isImage = (msgMap['IsImage'] ?? msgMap['isImage'])?.toString() ?? 'false';
+            print('Loaded message - userId: $userId, userName: $userName, content: "$content", isImage: $isImage'); // Debug
             
-            // Check if content is an image path
-            final bool isImageMessage = content.startsWith('[IMAGE]');
-            final String? imagePath = isImageMessage ? content.substring(7) : null;
+            // Check if message is an image
+            final bool isImageMessage = isImage == "true" || isImage == "True";
+            final String? imagePath = isImageMessage ? content : null;
             
             final isMe = userId == _appState.currentUserId;
             _messages.add({
@@ -108,7 +112,7 @@ class _ChatScreenState extends State<ChatScreen> {
               "content": isImageMessage ? "" : content,
               "isMe": isMe,
               "isImage": isImageMessage,
-              if (imagePath != null) "imagePath": imagePath,
+              if (imagePath != null) "imagePath": ImageService.getImageUrl(imagePath),
             });
           }
         });
@@ -124,7 +128,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // Listen for user kicked event
       _signalRService.onUserKicked((data) {
         print('User kicked event received: $data');
-        final roomId = (data['RoomId'] ?? data['roomId'])?.toString()?.replaceAll('#', '').trim();
+        final roomId = (data['RoomId'] ?? data['roomId'])?.toString().replaceAll('#', '').trim();
         final currentRoomId = _appState.currentRoomId?.replaceAll('#', '').trim();
         
         // Only handle if kicked from the current room
@@ -252,29 +256,43 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       try {
-        // Send image path as message content (full implementation would upload to server)
+        // Show loading indicator
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nahrávání obrázku...'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+
+        // Upload image to server
+        final imagePath = await ImageService.uploadImage(pickedFile);
+
+        if (imagePath == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Nepodařilo se nahrát obrázek')),
+            );
+          }
+          return;
+        }
+
+        // Send message with image path
+        // Don't add to local messages - let SignalR handle it via onReceiveMessage
         await _signalRService.sendMessage(
           userId: userId,
-          content: '[IMAGE]${pickedFile.path}',
+          content: imagePath,
           roomId: roomId,
+          isImage: true,
         );
-        
-        // Add to local messages for immediate display
-        setState(() {
-          _messages.add({
-            "sender": "${_appState.currentUserName ?? 'You'} (you)",
-            "content": "",
-            "isMe": true,
-            "imagePath": pickedFile.path,
-            "isImage": true,
-          });
-        });
-        _scrollToBottom();
       } catch (e) {
         print('Error sending image: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send image: $e')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Chyba při odesílání obrázku: $e')),
+          );
+        }
       }
     }
   }
@@ -368,7 +386,12 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final message = _messages[_messages.length - 1 - index];
-                      return MessageBubbleBuilder(message: message);
+                      // Use a unique key based on message content and imagePath to force rebuild
+                      final messageKey = '${message["content"]}_${message["imagePath"]}_$index';
+                      return MessageBubbleBuilder(
+                        key: ValueKey(messageKey),
+                        message: message,
+                      );
                     },
                   ),
           ),

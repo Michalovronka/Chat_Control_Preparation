@@ -36,7 +36,7 @@ class UserProfileSection extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withOpacity(0.1),
             child: Icon(Icons.person, size: 24, color: Colors.white),
           ),
           SizedBox(width: 12),

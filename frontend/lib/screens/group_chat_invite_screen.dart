@@ -117,6 +117,9 @@ class _GroupChatInviteScreenState extends State<GroupChatInviteScreen> {
           ),
           child: IconButton(
             icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+            alignment: Alignment.center,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(),
             onPressed: () {
               Navigator.pop(context);
             },

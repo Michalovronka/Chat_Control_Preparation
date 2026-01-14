@@ -29,10 +29,10 @@ class MessageInputSection extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withOpacity(0.08),
               border: Border(
                 top: BorderSide(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.15),
                   width: 1.5,
                 ),
               ),
@@ -46,10 +46,10 @@ class MessageInputSection extends StatelessWidget {
                       filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withOpacity(0.15),
                             width: 1.5,
                           ),
                         ),
@@ -78,7 +78,7 @@ class MessageInputSection extends StatelessWidget {
                 SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withOpacity(0.06),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -89,7 +89,7 @@ class MessageInputSection extends StatelessWidget {
                 SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withOpacity(0.06),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(

@@ -43,15 +43,18 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
             filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withOpacity(0.08),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.15),
                   width: 1.5,
                 ),
               ),
               child: IconButton(
                 icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                alignment: Alignment.center,
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(),
                 onPressed: () {
                   // Use callback if provided, otherwise default behavior
                   if (onBackPressed != null) {

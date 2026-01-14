@@ -43,7 +43,7 @@ class LogoutButton extends StatelessWidget {
                 color: Colors.red.withOpacity(0.4),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withOpacity(0.15),
                   width: 1.5,
                 ),
               ),

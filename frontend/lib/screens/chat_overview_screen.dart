@@ -214,7 +214,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                     children: [
                       CircleAvatar(
                         radius: 44,
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.white.withOpacity(0.1),
                         child: Icon(Icons.group, size: 44, color: Colors.white),
                       ),
                       SizedBox(width: 16),
@@ -404,10 +404,10 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                         child: Container(
                           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withOpacity(0.08),
                               width: 1.5,
                             ),
                           ),
@@ -436,7 +436,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                               SizedBox(width: 8),
                               Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.1),
+                                  color: Colors.white.withOpacity(0.06),
                                   shape: BoxShape.circle,
                                 ),
                                 child: IconButton(
