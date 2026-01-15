@@ -176,6 +176,18 @@ namespace CCP.Data
             cmd.ExecuteNonQuery();
         }
 
+        public void DeleteByRoomId(Guid roomId)
+        {
+            using var conn = new SqliteConnection(ConnectionString);
+            conn.Open();
+
+            const string sql = "DELETE FROM Messages WHERE RoomId = @RoomId;";
+            using var cmd = new SqliteCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@RoomId", roomId.ToString());
+
+            cmd.ExecuteNonQuery();
+        }
+
         // ========================
         // MAPPING (SQLite → class)
         // ========================

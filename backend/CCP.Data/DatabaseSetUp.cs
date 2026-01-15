@@ -27,23 +27,38 @@ namespace CCP.Data
                 StatusMessage TEXT,
                 UserState TEXT,
                 CurrentRoomId TEXT,
-                ConnectionId TEXT
+                ConnectionId TEXT,
+                JoinedRooms TEXT,
+                BlockedUsers TEXT
             );";
 
             using var cmd = new SqliteCommand(sql, connection);
             cmd.ExecuteNonQuery();
 
-            // Add PasswordHash column if it doesn't exist (for existing databases)
+            // Add columns if they don't exist (for existing databases)
             try
             {
                 var alterSql = "ALTER TABLE Users ADD COLUMN PasswordHash TEXT;";
                 using var alterCmd = new SqliteCommand(alterSql, connection);
                 alterCmd.ExecuteNonQuery();
             }
-            catch
+            catch { /* Column already exists */ }
+
+            try
             {
-                // Column already exists, ignore
+                var alterSql = "ALTER TABLE Users ADD COLUMN JoinedRooms TEXT;";
+                using var alterCmd = new SqliteCommand(alterSql, connection);
+                alterCmd.ExecuteNonQuery();
             }
+            catch { /* Column already exists */ }
+
+            try
+            {
+                var alterSql = "ALTER TABLE Users ADD COLUMN BlockedUsers TEXT;";
+                using var alterCmd = new SqliteCommand(alterSql, connection);
+                alterCmd.ExecuteNonQuery();
+            }
+            catch { /* Column already exists */ }
         }
 
         private static void CreateRoomsTable(SqliteConnection connection)
@@ -53,23 +68,29 @@ namespace CCP.Data
                 Id TEXT PRIMARY KEY,
                 Name TEXT NOT NULL,
                 PasswordHash TEXT,
-                InviteCode TEXT
+                InviteCode TEXT,
+                JoinedUsers TEXT
             );";
 
             using var cmd = new SqliteCommand(sql, connection);
             cmd.ExecuteNonQuery();
 
-            // Add InviteCode column if it doesn't exist (for existing databases)
+            // Add columns if they don't exist (for existing databases)
             try
             {
                 var alterSql = "ALTER TABLE Rooms ADD COLUMN InviteCode TEXT;";
                 using var alterCmd = new SqliteCommand(alterSql, connection);
                 alterCmd.ExecuteNonQuery();
             }
-            catch
+            catch { /* Column already exists */ }
+
+            try
             {
-                // Column already exists, ignore
+                var alterSql = "ALTER TABLE Rooms ADD COLUMN JoinedUsers TEXT;";
+                using var alterCmd = new SqliteCommand(alterSql, connection);
+                alterCmd.ExecuteNonQuery();
             }
+            catch { /* Column already exists */ }
         }
 
         private static void CreateMessagesTable(SqliteConnection connection)

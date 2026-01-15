@@ -1,3 +1,3 @@
-﻿namespace CCP.Domain.Models.ServerContracts;
+namespace CCP.Domain.Models.ServerContracts;
 
-public record ReceiveQueryModel(Guid SenderUserId, Guid ReceiverUserId) : ReceiveContractModel;
+public record ReceiveQueryModel(Guid SenderUserId, Guid ReceiverUserId, Guid RoomId) : ReceiveContractModel;

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'app_state.dart';
 
 class AuthService {
   static const String baseUrl = 'http://localhost:5202/api/auth';

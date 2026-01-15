@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'chat_screen.dart';
 import 'group_chat_invite_screen.dart';
 
 class CreateGroupChatScreen extends StatefulWidget {
@@ -28,6 +27,9 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
           ),
           child: IconButton(
             icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+            alignment: Alignment.center,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(),
             onPressed: () {
               Navigator.pop(context);
             },

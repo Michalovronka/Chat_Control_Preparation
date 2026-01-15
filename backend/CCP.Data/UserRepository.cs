@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using CCP.Domain.Entities;
 
@@ -58,9 +60,9 @@ namespace CCP.Data
 
             var sql = @"
             INSERT INTO Users
-            (Id, UserName, PasswordHash, LastTimeSeen, StatusMessage, UserState, CurrentRoomId, ConnectionId)
+            (Id, UserName, PasswordHash, LastTimeSeen, StatusMessage, UserState, CurrentRoomId, ConnectionId, JoinedRooms, BlockedUsers)
             VALUES
-            (@Id, @UserName, @PasswordHash, @LastTimeSeen, @StatusMessage, @UserState, @CurrentRoomId, @ConnectionId);";
+            (@Id, @UserName, @PasswordHash, @LastTimeSeen, @StatusMessage, @UserState, @CurrentRoomId, @ConnectionId, @JoinedRooms, @BlockedUsers);";
 
             using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", entity.Id.ToString());
@@ -71,6 +73,12 @@ namespace CCP.Data
             cmd.Parameters.AddWithValue("@UserState", entity.UserState);
             cmd.Parameters.AddWithValue("@CurrentRoomId", (object?)entity.CurrentRoomId?.ToString() ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ConnectionId", (object?)entity.ConnectionId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@JoinedRooms", entity.JoinedRooms != null && entity.JoinedRooms.Any() 
+                ? JsonSerializer.Serialize(entity.JoinedRooms) 
+                : (object?)DBNull.Value);
+            cmd.Parameters.AddWithValue("@BlockedUsers", entity.BlockedUsers != null && entity.BlockedUsers.Any() 
+                ? JsonSerializer.Serialize(entity.BlockedUsers) 
+                : (object?)DBNull.Value);
 
             cmd.ExecuteNonQuery();
         }
@@ -88,7 +96,9 @@ namespace CCP.Data
                 StatusMessage = @StatusMessage,
                 UserState = @UserState,
                 CurrentRoomId = @CurrentRoomId,
-                ConnectionId = @ConnectionId
+                ConnectionId = @ConnectionId,
+                JoinedRooms = @JoinedRooms,
+                BlockedUsers = @BlockedUsers
             WHERE Id = @Id;";
 
             using var cmd = new SqliteCommand(sql, conn);
@@ -100,6 +110,12 @@ namespace CCP.Data
             cmd.Parameters.AddWithValue("@UserState", entity.UserState);
             cmd.Parameters.AddWithValue("@CurrentRoomId", (object?)entity.CurrentRoomId?.ToString() ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ConnectionId", (object?)entity.ConnectionId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@JoinedRooms", entity.JoinedRooms != null && entity.JoinedRooms.Any() 
+                ? JsonSerializer.Serialize(entity.JoinedRooms) 
+                : (object?)DBNull.Value);
+            cmd.Parameters.AddWithValue("@BlockedUsers", entity.BlockedUsers != null && entity.BlockedUsers.Any() 
+                ? JsonSerializer.Serialize(entity.BlockedUsers) 
+                : (object?)DBNull.Value);
 
             cmd.ExecuteNonQuery();
         }
@@ -117,6 +133,34 @@ namespace CCP.Data
 
         private static UserEntity MapUser(SqliteDataReader reader)
         {
+            var joinedRoomsJson = reader["JoinedRooms"] == DBNull.Value ? null : reader["JoinedRooms"].ToString();
+            List<Guid> joinedRooms = new List<Guid>();
+            if (!string.IsNullOrEmpty(joinedRoomsJson))
+            {
+                try
+                {
+                    joinedRooms = JsonSerializer.Deserialize<List<Guid>>(joinedRoomsJson) ?? new List<Guid>();
+                }
+                catch
+                {
+                    joinedRooms = new List<Guid>();
+                }
+            }
+
+            var blockedUsersJson = reader["BlockedUsers"] == DBNull.Value ? null : reader["BlockedUsers"]?.ToString();
+            List<Guid> blockedUsers = new List<Guid>();
+            if (!string.IsNullOrEmpty(blockedUsersJson))
+            {
+                try
+                {
+                    blockedUsers = JsonSerializer.Deserialize<List<Guid>>(blockedUsersJson) ?? new List<Guid>();
+                }
+                catch
+                {
+                    blockedUsers = new List<Guid>();
+                }
+            }
+
             return new UserEntity
             {
                 Id = Guid.Parse(reader["Id"].ToString()!),
@@ -126,7 +170,9 @@ namespace CCP.Data
                 StatusMessage = reader["StatusMessage"] == DBNull.Value ? null : reader["StatusMessage"].ToString(),
                 UserState = reader["UserState"].ToString()!,
                 CurrentRoomId = reader["CurrentRoomId"] == DBNull.Value ? null : Guid.Parse(reader["CurrentRoomId"].ToString()!),
-                ConnectionId = reader["ConnectionId"] == DBNull.Value ? null : reader["ConnectionId"].ToString()
+                ConnectionId = reader["ConnectionId"] == DBNull.Value ? null : reader["ConnectionId"].ToString(),
+                JoinedRooms = joinedRooms,
+                BlockedUsers = blockedUsers
             };
         }
     }
