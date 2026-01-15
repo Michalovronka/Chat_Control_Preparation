@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../widgets/chat_app_bar.dart';
 import '../widgets/participant_tile.dart';
 import '../widgets/invite_code_section.dart';
@@ -27,10 +28,12 @@ class ChatOverviewScreen extends StatefulWidget {
 
 class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
   final AppState _appState = AppState();
+  final TextEditingController _inviteUsernameController = TextEditingController();
   List<Map<String, dynamic>> participants = [];
   String? inviteCode;
   bool _isLoading = true;
   String? _currentUserId;
+  String? _roomOwnerId; // ID of the room owner (first user in JoinedUsers list)
   SignalRService? _signalRService;
 
   @override
@@ -38,6 +41,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
     super.initState();
     _currentUserId = _appState.currentUserId;
     _signalRService = widget.signalRService;
+    _loadBlockedUsers();
     _loadData();
     
     // Set up SignalR listeners for real-time updates if service is available
@@ -46,11 +50,25 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
     }
   }
 
+  Future<void> _loadBlockedUsers() async {
+    if (_appState.currentUserId == null) return;
+    
+    try {
+      final blockedUsers = await UserService.getBlockedUsers(_appState.currentUserId!);
+      if (blockedUsers != null) {
+        _appState.setBlockedUsers(blockedUsers);
+      }
+    } catch (e) {
+      print('Error loading blocked users: $e');
+    }
+  }
+
   void _setupSignalRListeners() {
     if (_signalRService == null) return;
     
     // Listen for users joining
     _signalRService!.onReceiveJoin((data) {
+      if (!mounted) return;
       print('User joined: $data');
       // Refresh participants list
       _loadData();
@@ -58,9 +76,29 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
     
     // Listen for users leaving
     _signalRService!.onReceiveLeave((data) {
+      if (!mounted) return;
       print('User left: $data');
       // Refresh participants list
       _loadData();
+    });
+
+    // Listen for block updates
+    _signalRService!.onBlockUpdated((data) {
+      if (!mounted) return;
+      print('Block updated: $data');
+      final blockedUserId = (data['BlockedUserId'] ?? data['blockedUserId'])?.toString();
+      final isBlocked = (data['IsBlocked'] ?? data['isBlocked']) == true;
+      
+      if (blockedUserId != null) {
+        if (isBlocked) {
+          _appState.addBlockedUser(blockedUserId);
+        } else {
+          _appState.removeBlockedUser(blockedUserId);
+        }
+        if (mounted) {
+          setState(() {});
+        }
+      }
     });
   }
 
@@ -73,16 +111,20 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
 
   Future<void> _loadData() async {
     if (widget.roomId == null) {
-      setState(() {
-        _isLoading = false;
-        participants = [];
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          participants = [];
+        });
+      }
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       // Load participants - ensure roomId is a valid GUID
@@ -96,67 +138,81 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
       
       if (users != null) {
         if (users.isNotEmpty) {
-          setState(() {
-            participants = users.map((user) {
-              final userId = user['id'] ?? user['Id'];
-              final userName = user['userName'] ?? user['UserName'] ?? 'Unknown';
-              final userState = user['userState'] ?? user['UserState'] ?? 'Offline';
-              print('Participant: $userName (ID: $userId, State: $userState)');
-              return {
-                'id': userId?.toString() ?? '',
-                'name': userName,
-                'status': _mapUserStateToParticipantStatus(userState),
-              };
-            }).where((p) => p['id'] != null && p['id']!.isNotEmpty).toList();
-          });
-          print('Loaded ${participants.length} participants');
+          // Room owner is the first user in the list (first user in JoinedUsers)
+          final firstUser = users.first;
+          final firstUserId = (firstUser['id'] ?? firstUser['Id'])?.toString();
+          
+          if (mounted) {
+            setState(() {
+              _roomOwnerId = firstUserId;
+              // Normalize room ID for comparison (remove # and trim)
+              final normalizedRoomId = roomIdToUse.replaceAll('#', '').trim();
+              
+              participants = users.map((user) {
+                final userId = user['id'] ?? user['Id'];
+                final userName = user['userName'] ?? user['UserName'] ?? 'Unknown';
+                final userState = user['userState'] ?? user['UserState'] ?? 'Offline';
+                final currentRoomIdRaw = user['currentRoomId'] ?? user['CurrentRoomId'];
+                final currentRoomId = currentRoomIdRaw?.toString().replaceAll('#', '').trim();
+                
+                // Check if user is currently in this room
+                final isInRoom = currentRoomId != null && currentRoomId == normalizedRoomId;
+                
+                print('Participant: $userName (ID: $userId, State: $userState, CurrentRoomId: $currentRoomId, InRoom: $isInRoom)');
+                return {
+                  'id': userId?.toString() ?? '',
+                  'name': userName,
+                  'status': isInRoom ? ParticipantStatus.online : ParticipantStatus.offline, // Green if in room, gray if away
+                  'isInRoom': isInRoom,
+                };
+              }).where((p) => p['id'] != null && p['id']!.isNotEmpty).toList();
+            });
+          }
+          print('Loaded ${participants.length} participants, room owner: $_roomOwnerId');
         } else {
           print('No users found in room (empty list)');
+          if (mounted) {
+            setState(() {
+              participants = [];
+            });
+          }
+        }
+      } else {
+        print('No users found in room (null response)');
+        if (mounted) {
           setState(() {
             participants = [];
           });
         }
-      } else {
-        print('No users found in room (null response)');
-        setState(() {
-          participants = [];
-        });
       }
 
       // Load invite code - get room details which should include invite code
       String roomIdForInvite = widget.roomId!.replaceAll('#', '').trim();
       final room = await RoomService.getRoom(roomIdForInvite);
-      if (room != null) {
-        setState(() {
-          inviteCode = room['inviteCode'] ?? 
-                      room['InviteCode'] ?? 
-                      'N/A';
-        });
-      } else {
-        setState(() {
-          inviteCode = 'N/A';
-        });
+      if (mounted) {
+        if (room != null) {
+          setState(() {
+            inviteCode = room['inviteCode'] ?? 
+                        room['InviteCode'] ?? 
+                        'N/A';
+          });
+        } else {
+          setState(() {
+            inviteCode = 'N/A';
+          });
+        }
       }
     } catch (e) {
       print('Error loading overview data: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  ParticipantStatus _mapUserStateToParticipantStatus(String userState) {
-    switch (userState.toLowerCase()) {
-      case 'online':
-        return ParticipantStatus.online;
-      case 'away':
-        return ParticipantStatus.away;
-      case 'offline':
-      default:
-        return ParticipantStatus.offline;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +264,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                     children: [
                       CircleAvatar(
                         radius: 44,
-                        backgroundColor: Colors.white.withOpacity(0.2),
+                        backgroundColor: Colors.white.withOpacity(0.1),
                         child: Icon(Icons.group, size: 44, color: Colors.white),
                       ),
                       SizedBox(width: 16),
@@ -219,60 +275,81 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                         ),
                         child: IconButton(
                           onPressed: () async {
-                            // Leave the room via SignalR
-                            if (widget.roomId != null && _currentUserId != null) {
-                              try {
-                                // Use existing SignalR service if available, otherwise create new one
-                                SignalRService? signalRService = _signalRService;
-                                bool shouldStop = false;
-                                
-                                if (signalRService == null) {
-                                  signalRService = SignalRService();
-                                  await signalRService.start();
-                                  shouldStop = true;
-                                  // Wait a bit for connection to establish
-                                  await Future.delayed(Duration(milliseconds: 500));
-                                } else {
-                                  // If service exists, ensure it's connected
-                                  if (!signalRService.isConnected) {
-                                    await signalRService.start();
-                                    // Wait a bit for connection to establish
-                                    await Future.delayed(Duration(milliseconds: 500));
-                                  }
-                                }
-                                
-                                String roomIdToUse = widget.roomId!.replaceAll('#', '').trim();
-                                print('Leaving room: $roomIdToUse as user: $_currentUserId');
-                                
-                                await signalRService.sendLeave(
-                                  userId: _currentUserId!,
-                                  roomId: roomIdToUse,
-                                );
-                                
-                                print('Successfully left room');
-                                
-                                if (shouldStop) {
-                                  await signalRService.stop();
-                                }
-                              } catch (e) {
-                                print('Error leaving room: $e');
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Chyba při opouštění místnosti: $e')),
-                                );
-                              }
+                            String? roomIdToUse = widget.roomId?.replaceAll('#', '').trim();
+                            
+                            if (roomIdToUse == null || _currentUserId == null) {
+                              return;
                             }
                             
-                            // Clear room from app state
-                            _appState.clearRoom();
-                            
-                            // Navigate back to home
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ConnectScreen(),
-                              ),
-                              (route) => false,
-                            );
+                            try {
+                              // Use existing SignalR service if available, otherwise create new one
+                              SignalRService? signalRService = _signalRService;
+                              bool shouldStop = false;
+                              
+                              if (signalRService == null) {
+                                signalRService = SignalRService();
+                                await signalRService.start();
+                                shouldStop = true;
+                                // Wait a bit for connection to establish
+                                await Future.delayed(Duration(milliseconds: 500));
+                              } else {
+                                // If service exists, ensure it's connected
+                                if (!signalRService.isConnected) {
+                                  await signalRService.start();
+                                  // Wait a bit for connection to establish
+                                  await Future.delayed(Duration(milliseconds: 500));
+                                }
+                              }
+                              
+                              // Get user name for the leave message
+                              final userName = _appState.currentUserName ?? 'Uživatel';
+                              
+                              // Send a leave message to the room before leaving
+                              print('Sending leave message to room: $roomIdToUse');
+                              try {
+                                await signalRService.sendMessage(
+                                  userId: _currentUserId!,
+                                  content: '$userName opustil místnost',
+                                  roomId: roomIdToUse,
+                                );
+                                print('Leave message sent');
+                                // Wait a moment for message to be sent
+                                await Future.delayed(Duration(milliseconds: 200));
+                              } catch (e) {
+                                print('Error sending leave message: $e');
+                                // Continue even if message sending fails
+                              }
+                              
+                              // Leave the room via SignalR (permanent leave - remove from lists)
+                              print('Leaving room: $roomIdToUse as user: $_currentUserId');
+                              await signalRService.sendLeave(
+                                userId: _currentUserId!,
+                                roomId: roomIdToUse,
+                                permanentLeave: true, // Leave button = permanent leave
+                              );
+                              print('Successfully left room (permanent)');
+                              
+                              if (shouldStop) {
+                                await signalRService.stop();
+                              }
+                              
+                              // Clear room from app state
+                              _appState.clearRoom();
+                              
+                              // Navigate back to home
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ConnectScreen(),
+                                ),
+                                (route) => false,
+                              );
+                            } catch (e) {
+                              print('Error leaving/deleting room: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Chyba při opouštění místnosti: $e')),
+                              );
+                            }
                           },
                           icon: Icon(
                             Icons.exit_to_app,
@@ -336,14 +413,28 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                                       padding: EdgeInsets.zero,
                                       itemCount: participants.length,
                                       itemBuilder: (context, index) {
+                                        final participantId = participants[index]["id"]?.toString();
                                         return Transform.translate(
                                           offset: Offset(0, index == 0 ? -4 : 0),
                                           child: ParticipantTile(
-                                            participantId: participants[index]["id"]?.toString(),
+                                            participantId: participantId,
                                             participantName: participants[index]["name"],
                                             status: participants[index]["status"],
                                             roomId: widget.roomId,
                                             currentUserId: _currentUserId,
+                                            roomOwnerId: _roomOwnerId,
+                                            signalRService: _signalRService,
+                                            isBlocked: participantId != null 
+                                                ? _appState.isUserBlocked(participantId)
+                                                : false,
+                                            onBlockToggle: () {
+                                              // Reload blocked users and refresh UI
+                                              _loadBlockedUsers().then((_) {
+                                                if (mounted) {
+                                                  setState(() {});
+                                                }
+                                              });
+                                            },
                                           ),
                                         );
                                       },
@@ -354,6 +445,78 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                   ),
                 ),
 
+                // Invite user section
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.08),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _inviteUsernameController,
+                                  style: TextStyle(
+                                    fontFamily: 'Jura',
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: "Uživatelské jméno...",
+                                    hintStyle: TextStyle(
+                                      fontFamily: 'Jura',
+                                      color: Colors.white70,
+                                      fontSize: 16,
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.06),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: IconButton(
+                                  icon: Icon(Icons.person_add, color: Colors.white, size: 20),
+                                  onPressed: _currentUserId != null && widget.roomId != null
+                                      ? () => _sendInvite()
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+
                 // Invite code
                 InviteCodeSection(inviteCode: inviteCode ?? 'N/A'),
                 SizedBox(height: 12),
@@ -363,5 +526,80 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _sendInvite() async {
+    final username = _inviteUsernameController.text.trim();
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Zadejte uživatelské jméno')),
+      );
+      return;
+    }
+
+    if (_currentUserId == null || widget.roomId == null) {
+      return;
+    }
+
+    try {
+      // Find user by username
+      final user = await UserService.getUserByUsername(username);
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Uživatel nenalezen')),
+        );
+        return;
+      }
+
+      final receiverUserId = (user['id'] ?? user['Id'])?.toString();
+      if (receiverUserId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Chyba při získávání ID uživatele')),
+        );
+        return;
+      }
+
+      // Ensure SignalR is connected
+      SignalRService? signalR = _signalRService;
+      bool shouldStop = false;
+      if (signalR == null) {
+        signalR = SignalRService();
+        await signalR.start();
+        shouldStop = true;
+        await Future.delayed(Duration(milliseconds: 500));
+      } else if (!signalR.isConnected) {
+        await signalR.start();
+        await Future.delayed(Duration(milliseconds: 500));
+      }
+
+      // Send query (invite)
+      print('[INVITE SENT] From chat_overview_screen - Sender: $_currentUserId, Receiver: $receiverUserId, Room: ${widget.roomId}, Username: $username');
+      await signalR.sendQuery(
+        senderUserId: _currentUserId!,
+        receiverUserId: receiverUserId,
+        roomId: widget.roomId!,
+      );
+      print('[INVITE SENT] Invite sent successfully from chat_overview_screen');
+
+      if (shouldStop) {
+        await signalR.stop();
+      }
+
+      _inviteUsernameController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pozvánka odeslána uživateli $username')),
+      );
+    } catch (e) {
+      print('Error sending invite: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chyba při odesílání pozvánky: $e')),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _inviteUsernameController.dispose();
+    super.dispose();
   }
 }

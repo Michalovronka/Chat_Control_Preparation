@@ -1,6 +1,10 @@
 import 'package:signalr_netcore/signalr_client.dart';
 
 class SignalRService {
+  // Singleton pattern
+  static final SignalRService _instance = SignalRService._internal();
+  factory SignalRService() => _instance;
+
   // Use HTTP for development (easier for mobile/web)
   static const String baseUrl = 'http://localhost:5202';
   static const String hubPath = '/chathub';
@@ -9,7 +13,7 @@ class SignalRService {
   
   HubConnection get connection => _connection;
   
-  SignalRService() {
+  SignalRService._internal() {
     _connection = HubConnectionBuilder()
         .withUrl('$baseUrl$hubPath')
         .withAutomaticReconnect()
@@ -33,6 +37,29 @@ class SignalRService {
   
   bool get isConnected => _connection.state == HubConnectionState.Connected;
   
+  // Ensure connection is ready before invoking methods
+  Future<void> ensureConnected() async {
+    if (_connection.state == HubConnectionState.Connected) {
+      return;
+    }
+    
+    if (_connection.state == HubConnectionState.Disconnected) {
+      await start();
+    }
+    
+    // Wait for connection to be established (with timeout)
+    int retries = 0;
+    const maxRetries = 20; // 2 seconds max wait
+    while (_connection.state != HubConnectionState.Connected && retries < maxRetries) {
+      await Future.delayed(Duration(milliseconds: 100));
+      retries++;
+    }
+    
+    if (_connection.state != HubConnectionState.Connected) {
+      throw Exception('Failed to establish SignalR connection. State: ${_connection.state}');
+    }
+  }
+  
   Future<void> stop() async {
     try {
       if (_connection.state != HubConnectionState.Disconnected) {
@@ -47,11 +74,12 @@ class SignalRService {
     }
   }
   
-  // Send message - matches SendMessageModel: (Guid RoomId, Guid UserId, string Content, DateTime SentTime)
+  // Send message - matches SendMessageModel: (Guid RoomId, Guid UserId, string Content, string IsImage, DateTime SentTime)
   Future<void> sendMessage({
     required String userId,
     required String content,
     required String roomId,
+    bool isImage = false,
   }) async {
     try {
       await _connection.invoke('SendMessage', args: [
@@ -59,6 +87,7 @@ class SignalRService {
           'RoomId': roomId,
           'UserId': userId,
           'Content': content,
+          'IsImage': isImage ? 'true' : 'false',
           'SentTime': DateTime.now().toIso8601String(),
         }
       ]);
@@ -75,6 +104,9 @@ class SignalRService {
     String? message,
   }) async {
     try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
       await _connection.invoke('SendJoin', args: [
         {
           'UserId': userId,
@@ -88,11 +120,12 @@ class SignalRService {
     }
   }
 
-  // Leave room - matches SendLeaveModel: (Guid UserId, Guid RoomId, string? Message)
+  // Leave room - matches SendLeaveModel: (Guid UserId, Guid RoomId, string? Message, bool PermanentLeave)
   Future<void> sendLeave({
     required String userId,
     required String roomId,
     String? message,
+    bool permanentLeave = false, // true for leave button, false for back arrow
   }) async {
     try {
       await _connection.invoke('SendLeave', args: [
@@ -100,10 +133,31 @@ class SignalRService {
           'UserId': userId,
           'RoomId': roomId,
           'Message': message,
+          'PermanentLeave': permanentLeave,
         }
       ]);
     } catch (e) {
       print('Error leaving room: $e');
+      rethrow;
+    }
+  }
+
+  // Kick user - matches SendKickModel: (Guid KickerUserId, Guid KickedUserId, Guid RoomId)
+  Future<void> sendKick({
+    required String kickerUserId,
+    required String kickedUserId,
+    required String roomId,
+  }) async {
+    try {
+      await _connection.invoke('SendKick', args: [
+        {
+          'KickerUserId': kickerUserId,
+          'KickedUserId': kickedUserId,
+          'RoomId': roomId,
+        }
+      ]);
+    } catch (e) {
+      print('Error kicking user: $e');
       rethrow;
     }
   }
@@ -169,6 +223,9 @@ class SignalRService {
   // Request to show messages for current room
   Future<void> sendShowMessages() async {
     try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
       // SendShowMessagesModel expects IReadOnlyList<MessageDto> Message, but we send empty list to request
       await _connection.invoke('SendShowMessages', args: [
         {
@@ -208,6 +265,15 @@ class SignalRService {
     });
   }
 
+  // Listen to user kicked event
+  void onUserKicked(Function(Map<String, dynamic>) callback) {
+    _connection.on('UserKicked', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        callback(arguments[0] as Map<String, dynamic>);
+      }
+    });
+  }
+
   // Send Who - get users in current room
   Future<void> sendWho() async {
     try {
@@ -221,6 +287,93 @@ class SignalRService {
   // Listen to receive who
   void onReceiveWho(Function(Map<String, dynamic>) callback) {
     _connection.on('ReceiveWho', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        callback(arguments[0] as Map<String, dynamic>);
+      }
+    });
+  }
+
+  // Send Query - invite user
+  Future<void> sendQuery({
+    required String senderUserId,
+    required String receiverUserId,
+    required String roomId,
+  }) async {
+    try {
+      print('[INVITE SENT] Sender: $senderUserId, Receiver: $receiverUserId, Room: $roomId');
+      await _connection.invoke('SendQuery', args: [
+        {
+          'SenderUserId': senderUserId,
+          'ReceiverUserId': receiverUserId,
+          'RoomId': roomId,
+        }
+      ]);
+      print('[INVITE SENT] Successfully sent invite');
+    } catch (e) {
+      print('[INVITE ERROR] Error sending query: $e');
+      rethrow;
+    }
+  }
+
+  // Listen to receive query
+  void onReceiveQuery(Function(Map<String, dynamic>) callback) {
+    _connection.on('ReceiveQuery', (arguments) {
+      print('[INVITE RECEIVED] Raw SignalR arguments: $arguments');
+      if (arguments != null && arguments.isNotEmpty) {
+        final data = arguments[0] as Map<String, dynamic>;
+        print('[INVITE RECEIVED] Parsed data - Sender: ${data['SenderUserId'] ?? data['senderUserId']}, Receiver: ${data['ReceiverUserId'] ?? data['receiverUserId']}, Room: ${data['RoomId'] ?? data['roomId']}');
+        callback(data);
+      } else {
+        print('[INVITE ERROR] Received query with empty or null arguments');
+      }
+    });
+  }
+
+  // Register connection - sets ConnectionId for the user
+  Future<void> registerConnection(String userId) async {
+    try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
+      print('[CONNECTION REGISTER] Registering connection for user: $userId');
+      await _connection.invoke('RegisterConnection', args: [
+        {
+          'UserId': userId,
+        }
+      ]);
+      print('[CONNECTION REGISTER] Successfully registered connection');
+    } catch (e) {
+      print('[CONNECTION ERROR] Error registering connection: $e');
+      rethrow;
+    }
+  }
+
+  // Block/Unblock user
+  Future<void> sendBlock({
+    required String userId,
+    required String blockedUserId,
+    required bool isBlock,
+  }) async {
+    try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
+      await _connection.invoke('SendBlock', args: [
+        {
+          'UserId': userId,
+          'BlockedUserId': blockedUserId,
+          'IsBlock': isBlock,
+        }
+      ]);
+    } catch (e) {
+      print('Error blocking/unblocking user: $e');
+      rethrow;
+    }
+  }
+
+  // Listen to block updates
+  void onBlockUpdated(Function(Map<String, dynamic>) callback) {
+    _connection.on('BlockUpdated', (arguments) {
       if (arguments != null && arguments.isNotEmpty) {
         callback(arguments[0] as Map<String, dynamic>);
       }

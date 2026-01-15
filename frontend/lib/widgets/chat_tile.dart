@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import '../screens/chat_screen.dart';
 
 class ChatTile extends StatelessWidget {
@@ -18,49 +19,68 @@ class ChatTile extends StatelessWidget {
           ),
         ).then((_) {
           // Refresh rooms list when returning from chat
-          // This will be handled by the parent screen if needed
+          // The ConnectScreen's didChangeDependencies will handle this
         });
       },
       child: Container(
         margin: EdgeInsets.symmetric(vertical: 4),
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.2),
-          ),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: Icon(Icons.forum, color: Colors.white, size: 18),
-            ),
-            SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontFamily: 'Jura',
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  id.length >= 8 ? '#${id.substring(0, 8)}' : id,
-                  style: TextStyle(
-                    fontFamily: 'Jura',
-                    color: Colors.white70,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 12,
+              spreadRadius: 2,
             ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.15),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white.withOpacity(0.1),
+                    child: Icon(Icons.forum, color: Colors.white, size: 18),
+                  ),
+                  SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontFamily: 'Jura',
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        id.length >= 8 ? '#${id.substring(0, 8)}' : id,
+                        style: TextStyle(
+                          fontFamily: 'Jura',
+                          color: Colors.white70,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

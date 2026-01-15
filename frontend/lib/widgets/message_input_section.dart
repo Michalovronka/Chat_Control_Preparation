@@ -25,37 +25,52 @@ class MessageInputSection extends StatelessWidget {
           topRight: Radius.circular(16),
         ),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            color: Colors.black.withOpacity(0.3),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.15),
+                  width: 1.5,
+                ),
+              ),
+            ),
             child: Row(
               children: [
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.2),
-                      ),
-                    ),
-                    child: TextField(
-                      controller: messageController,
-                      style: TextStyle(
-                        fontFamily: 'Jura',
-                        color: Colors.white,
-                        fontSize: 18,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: "Napiš zprávu...",
-                        hintStyle: TextStyle(
-                          fontFamily: 'Jura',
-                          color: Colors.white70,
-                          fontSize: 18,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.15),
+                            width: 1.5,
+                          ),
                         ),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          controller: messageController,
+                          style: TextStyle(
+                            fontFamily: 'Jura',
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: "Napiš zprávu...",
+                            hintStyle: TextStyle(
+                              fontFamily: 'Jura',
+                              color: Colors.white70,
+                              fontSize: 18,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -63,7 +78,7 @@ class MessageInputSection extends StatelessWidget {
                 SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withOpacity(0.06),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -74,7 +89,7 @@ class MessageInputSection extends StatelessWidget {
                 SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withOpacity(0.06),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(

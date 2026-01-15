@@ -67,6 +67,28 @@ app.UseCors("AllowBrowser");
 
 app.UseHttpsRedirection();
 
+// Ensure uploads directory exists
+var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
+// Ensure images subdirectory exists
+var imagesPath = Path.Combine(uploadsPath, "images");
+if (!Directory.Exists(imagesPath))
+{
+    Directory.CreateDirectory(imagesPath);
+}
+
+// Serve static files (images)
+app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
+
 // Map controllers
 app.MapControllers();
 

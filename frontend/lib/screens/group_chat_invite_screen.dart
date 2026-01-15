@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Pro kopírování do schránky
 import 'dart:ui';
 import 'chat_screen.dart';
-import 'create_group_chat_screen.dart';
 import '../services/room_service.dart';
 import '../services/app_state.dart';
 
@@ -118,6 +117,9 @@ class _GroupChatInviteScreenState extends State<GroupChatInviteScreen> {
           ),
           child: IconButton(
             icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+            alignment: Alignment.center,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(),
             onPressed: () {
               Navigator.pop(context);
             },

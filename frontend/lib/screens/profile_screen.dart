@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import '../widgets/logout_button.dart';
 import '../services/app_state.dart';
@@ -17,6 +18,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _userId;
   bool _isEditing = false;
   bool _isLoading = true;
+  bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
@@ -41,6 +43,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Zkopírováno do schránky'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   Future<void> _saveUsername() async {
     if (_userId == null) return;
     
@@ -55,6 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _appState.setUser(_userId!, _usernameController.text);
         setState(() {
           _isEditing = false;
+          _hasUnsavedChanges = true; // Mark that changes were saved
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Změny byly uloženy')),
@@ -86,24 +99,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? '#${_userId!.length >= 8 ? _userId!.substring(0, 8) : _userId!}' 
         : '#N/A';
     
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Container(
-          margin: EdgeInsets.only(left: 16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            shape: BoxShape.circle,
+    return WillPopScope(
+      onWillPop: () async {
+        // Return true to allow navigation, but we'll pass the update status via Navigator.pop
+        return true;
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: Container(
+            margin: EdgeInsets.only(left: 16),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(50),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.08),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(),
+                    onPressed: () {
+                      // Return true if changes were saved, false otherwise
+                      Navigator.pop(context, _hasUnsavedChanges);
+                    },
+                  ),
+                ),
+              ),
+            ),
           ),
-          child: IconButton(
-            icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-          ),
-        ),
         title: Text(
           "Váš profil",
           style: TextStyle(
@@ -144,21 +188,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           // Profilová fotka
                           CircleAvatar(
                             radius: 50,
-                            backgroundColor: Colors.white.withOpacity(0.2),
+                            backgroundColor: Colors.white.withOpacity(0.1),
                             child: Icon(Icons.person, size: 50, color: Colors.white),
                           ),
                           SizedBox(height: 24),
                           // Kartička s informacemi
                           Container(
-                            padding: EdgeInsets.all(16),
                             margin: EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                ),
+                              ],
                             ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                                child: Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.08),
+                                      width: 1.5,
+                                    ),
+                                  ),
                             child: Column(
                               children: [
                                 // Uživatelské jméno
@@ -178,10 +238,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           ? Container(
                                               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                               decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(0.15),
+                                                color: Colors.white.withOpacity(0.08),
                                                 borderRadius: BorderRadius.circular(8),
                                                 border: Border.all(
-                                                  color: Colors.white.withOpacity(0.2),
+                                                  color: Colors.white.withOpacity(0.08),
                                                 ),
                                               ),
                                               child: TextField(
@@ -206,6 +266,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               ),
                                             ),
                                     ),
+                                    if (!_isEditing)
+                                      IconButton(
+                                        icon: Icon(Icons.copy, color: Colors.white70, size: 20),
+                                        onPressed: () => _copyToClipboard(_usernameController.text),
+                                        tooltip: 'Kopírovat jméno',
+                                        padding: EdgeInsets.zero,
+                                        constraints: BoxConstraints(),
+                                      ),
                                   ],
                                 ),
                                 SizedBox(height: 12),
@@ -220,47 +288,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         fontSize: 16,
                                       ),
                                     ),
-                                    Text(
-                                      userIdDisplay,
-                                      style: TextStyle(
-                                        fontFamily: 'Jura',
-                                        color: Colors.white70,
-                                        fontSize: 16,
+                                    Expanded(
+                                      child: Text(
+                                        userIdDisplay,
+                                        style: TextStyle(
+                                          fontFamily: 'Jura',
+                                          color: Colors.white70,
+                                          fontSize: 16,
+                                        ),
                                       ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.copy, color: Colors.white70, size: 20),
+                                      onPressed: _userId != null ? () => _copyToClipboard(_userId!) : null,
+                                      tooltip: 'Kopírovat ID',
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints(),
                                     ),
                                   ],
                                 ),
                               ],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                           SizedBox(height: 24),
                           // Tlačítko Upravit/Uložit
                           Container(
                             margin: EdgeInsets.only(top: 16),
-                            child: ElevatedButton(
-                              onPressed: () {
-                                if (_isEditing) {
-                                  _saveUsername();
-                                } else {
-                                  setState(() {
-                                    _isEditing = true;
-                                  });
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white.withOpacity(0.2),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
                                 ),
-                                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                                minimumSize: Size(double.infinity, 50),
-                              ),
-                              child: Text(
-                                _isEditing ? "Uložit" : "Upravit",
-                                style: TextStyle(
-                                  fontFamily: 'Jura',
-                                  color: Colors.white,
-                                  fontSize: 16,
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                                child: InkWell(
+                                  onTap: () {
+                                    if (_isEditing) {
+                                      _saveUsername();
+                                    } else {
+                                      setState(() {
+                                        _isEditing = true;
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                    constraints: BoxConstraints(minHeight: 50),
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.08),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _isEditing ? "Uložit" : "Upravit",
+                                        style: TextStyle(
+                                          fontFamily: 'Jura',
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -278,6 +383,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 }

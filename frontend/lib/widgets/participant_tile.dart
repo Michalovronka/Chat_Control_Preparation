@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../screens/chat_screen.dart';
+import 'dart:ui';
+import '../services/signalr_service.dart';
+import 'user_info_dialog.dart';
 
 enum ParticipantStatus {
   online,
@@ -13,6 +15,10 @@ class ParticipantTile extends StatelessWidget {
   final String? participantId;
   final String? roomId;
   final String? currentUserId;
+  final String? roomOwnerId; // ID of the room owner
+  final SignalRService? signalRService; // SignalR service for kicking
+  final bool isBlocked; // Whether this user is blocked
+  final VoidCallback? onBlockToggle; // Callback when block status changes
 
   const ParticipantTile({
     super.key,
@@ -21,6 +27,10 @@ class ParticipantTile extends StatelessWidget {
     this.participantId,
     this.roomId,
     this.currentUserId,
+    this.roomOwnerId,
+    this.signalRService,
+    this.isBlocked = false,
+    this.onBlockToggle,
   });
 
   @override
@@ -28,10 +38,42 @@ class ParticipantTile extends StatelessWidget {
     return Container(
       margin: EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
       ),
-      child: ListTile(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.15),
+                width: 1.5,
+              ),
+            ),
+            child: ListTile(
+        onTap: participantId != null
+            ? () {
+                // Show user info dialog when tapping on the tile
+                showDialog(
+                  context: context,
+                  builder: (context) => UserInfoDialog(
+                    userId: participantId!,
+                    userName: participantName,
+                    userStatus: status.toString(),
+                  ),
+                );
+              }
+            : null,
         leading: Stack(
           children: [
             CircleAvatar(
@@ -67,55 +109,99 @@ class ParticipantTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: Icon(Icons.chat_bubble_outline, color: Colors.white70),
-              onPressed: participantId != null && roomId != null
-                  ? () {
-                      // Navigate to chat screen with this user (private chat)
-                      // For now, navigate to the same room
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatScreen(
-                            groupName: participantName,
-                            roomId: roomId,
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
-            ),
-            if (currentUserId != null && participantId != null && currentUserId != participantId)
+            // Block/Unblock button (visible to all users, except themselves)
+            if (currentUserId != null && 
+                participantId != null && 
+                currentUserId != participantId &&
+                signalRService != null &&
+                onBlockToggle != null)
+              IconButton(
+                icon: Icon(
+                  isBlocked ? Icons.block : Icons.block_outlined,
+                  color: isBlocked ? Colors.orange : Colors.white70,
+                ),
+                onPressed: () async {
+                  try {
+                    // sendBlock will ensure connection is ready before invoking
+                    // Toggle block status
+                    await signalRService!.sendBlock(
+                      userId: currentUserId!,
+                      blockedUserId: participantId!,
+                      isBlock: !isBlocked,
+                    );
+
+                    // Call callback to update UI
+                    onBlockToggle!();
+                  } catch (e) {
+                    print('Error blocking/unblocking user: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Chyba při blokování/odblokování uživatele: $e')),
+                    );
+                  }
+                },
+                tooltip: isBlocked ? 'Odblokovat' : 'Blokovat',
+              ),
+            // Only show kick button if current user is the room owner and not trying to kick themselves
+            if (currentUserId != null && 
+                participantId != null && 
+                currentUserId != participantId &&
+                roomOwnerId != null &&
+                currentUserId == roomOwnerId &&
+                signalRService != null &&
+                roomId != null)
               IconButton(
                 icon: Icon(Icons.exit_to_app, color: Colors.redAccent),
-                onPressed: () {
+                onPressed: () async {
                   // Show confirmation dialog for kicking user
-                  showDialog(
+                  final shouldKick = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
                       title: Text('Vyhodit uživatele'),
-                      content: Text('Opravdu chcete vyhodit ${participantName}?'),
+                      content: Text('Opravdu chcete vyhodit $participantName?'),
                       actions: [
                         TextButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () => Navigator.pop(context, false),
                           child: Text('Zrušit'),
                         ),
                         TextButton(
-                          onPressed: () {
-                            // TODO: Implement kick user functionality
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Funkce vyhození uživatele bude implementována')),
-                            );
-                          },
+                          onPressed: () => Navigator.pop(context, true),
                           child: Text('Vyhodit', style: TextStyle(color: Colors.red)),
                         ),
                       ],
                     ),
                   );
+
+                  if (shouldKick == true) {
+                    try {
+                      // Ensure SignalR is connected
+                      if (!signalRService!.isConnected) {
+                        await signalRService!.start();
+                        await Future.delayed(Duration(milliseconds: 500));
+                      }
+
+                      // Kick the user
+                      await signalRService!.sendKick(
+                        kickerUserId: currentUserId!,
+                        kickedUserId: participantId!,
+                        roomId: roomId!,
+                      );
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$participantName byl vyhozen z místnosti')),
+                      );
+                    } catch (e) {
+                      print('Error kicking user: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Chyba při vyhazování uživatele: $e')),
+                      );
+                    }
+                  }
                 },
               ),
           ],
+        ),
+            ),
+          ),
         ),
       ),
     );

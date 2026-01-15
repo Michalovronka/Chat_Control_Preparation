@@ -90,7 +90,19 @@ wwwroot/*.map
 # *.env
 # *.env.*
 
+############################
+# DATABASE FILES
+############################
 # Ignore database files
-# *.db
-# *.sqlite
-# *.mdf
+*.db
+*.sqlite
+*.mdf
+chat.db
+
+############################
+# UPLOADED IMAGES
+############################
+# Ignore uploaded images
+backend/CCP.Api/uploads/
+uploads/
+**/uploads/images/

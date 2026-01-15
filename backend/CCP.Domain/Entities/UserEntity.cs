@@ -13,6 +13,8 @@ public class UserEntity : BaseEntity
     public string UserState { get; set; } = null!;
     public Guid? CurrentRoomId { get; set; }
     public string? ConnectionId { get; set; }
+    public List<Guid> JoinedRooms { get; set; } = new List<Guid>(); // List of room IDs user has joined
+    public List<Guid> BlockedUsers { get; set; } = new List<Guid>(); // List of user IDs that this user has blocked
 }
 
 // public record UserEntity(

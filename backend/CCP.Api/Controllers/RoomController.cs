@@ -10,11 +10,13 @@ public class RoomController : ControllerBase
 {
     private readonly IRoomRepository _roomRepository;
     private readonly IMessageRepository _messageRepository;
+    private readonly IUserRepository _userRepository;
 
-    public RoomController(IRoomRepository roomRepository, IMessageRepository messageRepository)
+    public RoomController(IRoomRepository roomRepository, IMessageRepository messageRepository, IUserRepository userRepository)
     {
         _roomRepository = roomRepository;
         _messageRepository = messageRepository;
+        _userRepository = userRepository;
     }
 
     [HttpPost("create")]
@@ -44,7 +46,8 @@ public class RoomController : ControllerBase
                 RoomName = request.RoomName ?? $"Room_{roomId.ToString().Substring(0, 8)}",
                 Password = request.Password ?? string.Empty,
                 InviteCode = inviteCode,
-                RoomMembers = Array.Empty<Guid>()
+                RoomMembers = Array.Empty<Guid>(),
+                JoinedUsers = new List<Guid>() // Initialize empty list
             };
 
             _roomRepository.Add(room);
@@ -123,11 +126,15 @@ public class RoomController : ControllerBase
             return BadRequest(new { Error = "Invalid user ID format" });
         }
 
-        // Get room IDs where user has sent messages
-        var roomIds = _messageRepository.GetRoomIdsByUser(userGuid).ToList();
-        
-        // Get room details for each room ID
-        var rooms = roomIds
+        // Get rooms from user's JoinedRooms list
+        var user = _userRepository.GetById(userGuid);
+        if (user == null || user.JoinedRooms == null || !user.JoinedRooms.Any())
+        {
+            return Ok(new List<object>());
+        }
+
+        // Get room details for each room in JoinedRooms
+        var rooms = user.JoinedRooms
             .Select(roomId => _roomRepository.GetById(roomId))
             .Where(room => room != null && room.Id.HasValue)
             .Select(room => new
@@ -140,6 +147,38 @@ public class RoomController : ControllerBase
             .ToList();
 
         return Ok(rooms);
+    }
+
+    [HttpGet("{id}/has-messages")]
+    public IActionResult RoomHasMessages(string id)
+    {
+        if (!Guid.TryParse(id, out var roomId))
+        {
+            return BadRequest(new { Error = "Invalid room ID format" });
+        }
+
+        var messages = _messageRepository.GetByRoomId(roomId);
+        var hasMessages = messages.Any();
+
+        return Ok(new { HasMessages = hasMessages, MessageCount = messages.Count() });
+    }
+
+    [HttpDelete("{id}")]
+    public IActionResult DeleteRoom(string id)
+    {
+        if (!Guid.TryParse(id, out var roomId))
+        {
+            return BadRequest(new { Error = "Invalid room ID format" });
+        }
+
+        var room = _roomRepository.GetById(roomId);
+        if (room == null)
+        {
+            return NotFound(new { Error = "Room not found" });
+        }
+
+        _roomRepository.Delete(roomId);
+        return Ok(new { Message = "Room deleted successfully" });
     }
 }
 

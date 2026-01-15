@@ -6,7 +6,8 @@ public class RoomEntity : BaseEntity
     public string RoomName { get; set; }
     public string Password { get; set; }
     public string? InviteCode { get; set; }
-    public Guid[] RoomMembers { get; set; }
+    public Guid[] RoomMembers { get; set; } // Legacy, keeping for compatibility
+    public List<Guid> JoinedUsers { get; set; } = new List<Guid>(); // List of user IDs who have joined this room
 }
 
 // public record RoomEntity(

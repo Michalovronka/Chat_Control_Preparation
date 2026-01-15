@@ -84,13 +84,16 @@ public class ChatHub : Hub, IClientChatContracts
             return;
         }
 
+        // Determine if message is an image
+        var isImage = model.IsImage == "true" || model.IsImage == "True";
+
         var messageEntity = new MessageEntity
         {
             Id = Guid.NewGuid(),
             UserId = model.UserId,
             RoomId = model.RoomId,
             Content = model.Content,
-            IsImage = false,
+            IsImage = isImage,
             SentTime = model.SentTime
         };
 
@@ -102,7 +105,7 @@ public class ChatHub : Hub, IClientChatContracts
             UserId = model.UserId.ToString(),
             UserName = user.UserName,
             Content = model.Content,
-            IsImage = "false",
+            IsImage = isImage ? "true" : "false",
             RoomId = model.RoomId.ToString()
         });
     }
@@ -132,6 +135,34 @@ public class ChatHub : Hub, IClientChatContracts
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, user.CurrentRoomId.Value.ToString());
         }
 
+        // Initialize JoinedRooms if null
+        if (user.JoinedRooms == null)
+        {
+            user.JoinedRooms = new List<Guid>();
+        }
+
+        // Add room to user's JoinedRooms list if not already there
+        if (!user.JoinedRooms.Contains(model.RoomId))
+        {
+            user.JoinedRooms.Add(model.RoomId);
+        }
+
+        // Initialize JoinedUsers if null
+        if (room.JoinedUsers == null)
+        {
+            room.JoinedUsers = new List<Guid>();
+        }
+
+        // Check if user is joining for the first time (not already in JoinedUsers list)
+        var isFirstTimeJoin = !room.JoinedUsers.Contains(model.UserId);
+
+        // Add user to room's JoinedUsers list if not already there
+        if (isFirstTimeJoin)
+        {
+            room.JoinedUsers.Add(model.UserId);
+            _roomRepository.Update(room);
+        }
+
         // Update user's current room
         user.CurrentRoomId = model.RoomId;
         user.ConnectionId = Context.ConnectionId;
@@ -141,6 +172,35 @@ public class ChatHub : Hub, IClientChatContracts
         var roomId = room.Id.Value;
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId.ToString());
 
+        // Send a join message to the room ONLY if this is the first time the user is joining
+        if (isFirstTimeJoin)
+        {
+            // Use a timestamp slightly in the future to ensure it appears as the most recent message
+            var joinMessageTime = DateTime.UtcNow.AddMilliseconds(1);
+            var joinMessageEntity = new MessageEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = model.UserId,
+                RoomId = model.RoomId,
+                Content = $"{user.UserName} se připojil k místnosti",
+                IsImage = false,
+                SentTime = joinMessageTime
+            };
+
+            _messageRepository.Add(joinMessageEntity);
+
+            // Send join message to all users in the room
+            await Clients.Group(roomId.ToString()).SendAsync("ReceiveMessage", new
+            {
+                UserId = model.UserId.ToString(),
+                UserName = user.UserName,
+                Content = joinMessageEntity.Content,
+                IsImage = "false",
+                RoomId = model.RoomId.ToString(),
+                SentTime = joinMessageTime.ToString("o") // Include timestamp
+            });
+        }
+
         // Notify others in the room
         var receiveModel = new ReceiveJoinModel(user.Id, roomId, room.Password ?? "");
         await Clients.Group(roomId.ToString()).SendAsync("ReceiveJoin", receiveModel);
@@ -148,22 +208,91 @@ public class ChatHub : Hub, IClientChatContracts
 
     public async Task SendLeave(SendLeaveModel model)
     {
-        var user = GetOrCreateUser(model.UserId);
-        
-        if (user.CurrentRoomId != model.RoomId)
+        try
         {
-            await Clients.Caller.SendAsync("Error", "User not in the specified room");
-            return;
+            var user = GetOrCreateUser(model.UserId);
+            
+            // For permanent leave, allow even if CurrentRoomId doesn't match (user might be in a different state)
+            // For temporary leave, check CurrentRoomId
+            if (!model.PermanentLeave && user.CurrentRoomId != model.RoomId)
+            {
+                await Clients.Caller.SendAsync("Error", "User not in the specified room");
+                return;
+            }
+
+            // Get the room
+            var room = _roomRepository.GetById(model.RoomId);
+            if (room == null)
+            {
+                await Clients.Caller.SendAsync("Error", "Room not found");
+                return;
+            }
+
+            // Remove from SignalR group first (before any potential room deletion)
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, model.RoomId.ToString());
+
+            // Send leave notification before potentially deleting the room
+            var receiveModel = new ReceiveLeaveModel(user.Id, model.RoomId);
+            await Clients.Group(model.RoomId.ToString()).SendAsync("ReceiveLeave", receiveModel);
+
+            // Clear current room (user navigates away)
+            user.CurrentRoomId = null;
+            user.ConnectionId = Context.ConnectionId;
+
+            // If permanent leave (leave button), remove from both lists
+            if (model.PermanentLeave)
+            {
+                // Initialize lists if null (shouldn't happen, but safety check)
+                if (user.JoinedRooms == null)
+                {
+                    user.JoinedRooms = new List<Guid>();
+                }
+                if (room.JoinedUsers == null)
+                {
+                    room.JoinedUsers = new List<Guid>();
+                }
+
+                // Remove room from user's JoinedRooms list
+                if (user.JoinedRooms.Contains(model.RoomId))
+                {
+                    user.JoinedRooms.Remove(model.RoomId);
+                }
+
+                // Remove user from room's JoinedUsers list
+                if (room.JoinedUsers.Contains(model.UserId))
+                {
+                    room.JoinedUsers.Remove(model.UserId);
+                    _roomRepository.Update(room);
+                }
+
+                // If room's JoinedUsers list is empty, delete the room
+                // Note: We already sent the ReceiveLeave message, so deletion is safe
+                if (room.JoinedUsers == null || !room.JoinedUsers.Any())
+                {
+                    // Delete all messages for this room first (to avoid foreign key constraint)
+                    _messageRepository.DeleteByRoomId(model.RoomId);
+                    // Then delete the room
+                    _roomRepository.Delete(model.RoomId);
+                    // Notify remaining clients (if any) that room was deleted
+                    try
+                    {
+                        await Clients.Group(model.RoomId.ToString()).SendAsync("RoomDeleted", new { RoomId = model.RoomId });
+                    }
+                    catch
+                    {
+                        // Ignore if group doesn't exist (room already deleted)
+                    }
+                }
+            }
+            // If temporary leave (back arrow), user stays in both lists, just CurrentRoomId is cleared
+
+            _userRepository.Update(user);
         }
-
-        user.CurrentRoomId = null;
-        user.ConnectionId = Context.ConnectionId;
-        _userRepository.Update(user);
-
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, model.RoomId.ToString());
-
-        var receiveModel = new ReceiveLeaveModel(user.Id, model.RoomId);
-        await Clients.Group(model.RoomId.ToString()).SendAsync("ReceiveLeave", receiveModel);
+        catch (Exception ex)
+        {
+            // Log the error and send a generic error message
+            await Clients.Caller.SendAsync("Error", $"An error occurred while leaving the room: {ex.Message}");
+        }
     }
 
     public async Task SendWho(SendWhoModel model)
@@ -205,37 +334,50 @@ public class ChatHub : Hub, IClientChatContracts
 
     public async Task SendQuery(SendQueryModel model)
     {
-        var sender = _userRepository.GetById(model.SenderUserId);
+        // Ensure sender exists and has ConnectionId set
+        var sender = GetOrCreateUser(model.SenderUserId);
         var receiver = _userRepository.GetById(model.ReceiverUserId);
 
-        if (sender == null || receiver == null)
+        Console.WriteLine($"[INVITE SENT] Sender: {model.SenderUserId}, Receiver: {model.ReceiverUserId}, Room: {model.RoomId}");
+
+        if (receiver == null)
         {
-            await Clients.Caller.SendAsync("Error", "User not found");
+            Console.WriteLine($"[INVITE ERROR] Receiver user not found: {model.ReceiverUserId}");
+            await Clients.Caller.SendAsync("Error", "Receiver user not found");
             return;
         }
 
-        var receiveModel = new ReceiveQueryModel(model.SenderUserId, model.ReceiverUserId);
+        var receiveModel = new ReceiveQueryModel(model.SenderUserId, model.ReceiverUserId, model.RoomId);
         
         // Send to the receiver
         if (!string.IsNullOrEmpty(receiver.ConnectionId))
         {
             await Clients.Client(receiver.ConnectionId).SendAsync("ReceiveQuery", receiveModel);
+            Console.WriteLine($"[INVITE RECEIVED] Sent to receiver: {model.ReceiverUserId}, ConnectionId: {receiver.ConnectionId}");
+        }
+        else
+        {
+            Console.WriteLine($"[INVITE ERROR] Receiver has no ConnectionId: {model.ReceiverUserId}");
         }
     }
 
     public async Task SendUserInfo(SendUserInfoModel model)
     {
-        var user = _userRepository.GetById(model.UserId);
-        if (user == null)
-        {
-            await Clients.Caller.SendAsync("Error", "User not found");
-            return;
-        }
-
+        var user = GetOrCreateUser(model.UserId, model.UserName);
+        
         // Update user info
-        user.UserName = model.UserName;
-        user.StatusMessage = model.StatusMessage;
-        user.UserState = model.UserState;
+        if (!string.IsNullOrEmpty(model.UserName))
+        {
+            user.UserName = model.UserName;
+        }
+        if (model.StatusMessage != null)
+        {
+            user.StatusMessage = model.StatusMessage;
+        }
+        if (!string.IsNullOrEmpty(model.UserState))
+        {
+            user.UserState = model.UserState;
+        }
         _userRepository.Update(user);
 
         var receiveModel = new ReceiveUserInfoModel(model.UserId);
@@ -385,6 +527,7 @@ public class ChatHub : Hub, IClientChatContracts
                 UserId = m.UserId.ToString(),
                 UserName = messageUser?.UserName ?? $"User_{m.UserId.ToString().Substring(0, 8)}",
                 Content = m.Content,
+                IsImage = m.IsImage ? "true" : "false",
                 RoomId = m.RoomId.ToString(),
                 SentTime = m.SentTime.ToString("o") // ISO 8601 format
             };
@@ -395,5 +538,202 @@ public class ChatHub : Hub, IClientChatContracts
         
         var receiveModel = new ReceiveShowMessagesModel(user.CurrentRoomId.Value);
         await Clients.Caller.SendAsync("ReceiveShowMessages", receiveModel);
+    }
+
+    public Task RegisterConnection(RegisterConnectionModel model)
+    {
+        var user = _userRepository.GetById(model.UserId);
+        if (user != null)
+        {
+            user.ConnectionId = Context.ConnectionId;
+            user.LastTimeSeen = DateTime.UtcNow;
+            _userRepository.Update(user);
+            Console.WriteLine($"[CONNECTION REGISTERED] User: {model.UserId}, ConnectionId: {Context.ConnectionId}");
+        }
+        else
+        {
+            Console.WriteLine($"[CONNECTION ERROR] User not found: {model.UserId}");
+        }
+        return Task.CompletedTask;
+    }
+
+    public async Task SendBlock(SendBlockModel model)
+    {
+        try
+        {
+            var user = _userRepository.GetById(model.UserId);
+            if (user == null)
+            {
+                await Clients.Caller.SendAsync("Error", "User not found");
+                return;
+            }
+
+            // Initialize BlockedUsers if null
+            if (user.BlockedUsers == null)
+            {
+                user.BlockedUsers = new List<Guid>();
+            }
+
+            if (model.IsBlock)
+            {
+                // Add to blocked list if not already there
+                if (!user.BlockedUsers.Contains(model.BlockedUserId))
+                {
+                    user.BlockedUsers.Add(model.BlockedUserId);
+                    _userRepository.Update(user);
+                    Console.WriteLine($"[BLOCK] User {model.UserId} blocked user {model.BlockedUserId}");
+                }
+            }
+            else
+            {
+                // Remove from blocked list
+                if (user.BlockedUsers.Contains(model.BlockedUserId))
+                {
+                    user.BlockedUsers.Remove(model.BlockedUserId);
+                    _userRepository.Update(user);
+                    Console.WriteLine($"[UNBLOCK] User {model.UserId} unblocked user {model.BlockedUserId}");
+                }
+            }
+
+            // Send confirmation back to caller
+            await Clients.Caller.SendAsync("BlockUpdated", new
+            {
+                BlockedUserId = model.BlockedUserId.ToString(),
+                IsBlocked = model.IsBlock
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in SendBlock: {ex.Message}");
+            await Clients.Caller.SendAsync("Error", $"An error occurred while blocking/unblocking user: {ex.Message}");
+        }
+    }
+
+    public async Task SendKick(SendKickModel model)
+    {
+        try
+        {
+            // Get the kicker (person who wants to kick)
+            var kicker = GetOrCreateUser(model.KickerUserId);
+            
+            // Get the room
+            var room = _roomRepository.GetById(model.RoomId);
+            if (room == null)
+            {
+                await Clients.Caller.SendAsync("Error", "Room not found");
+                return;
+            }
+
+            // Check if room has JoinedUsers list
+            if (room.JoinedUsers == null || !room.JoinedUsers.Any())
+            {
+                await Clients.Caller.SendAsync("Error", "Room has no users");
+                return;
+            }
+
+            // Room owner is the first user in JoinedUsers list
+            var roomOwnerId = room.JoinedUsers.First();
+            
+            // Only the room owner can kick users
+            if (model.KickerUserId != roomOwnerId)
+            {
+                await Clients.Caller.SendAsync("Error", "Only the room owner can kick users");
+                return;
+            }
+
+            // Cannot kick yourself
+            if (model.KickedUserId == model.KickerUserId)
+            {
+                await Clients.Caller.SendAsync("Error", "Cannot kick yourself");
+                return;
+            }
+
+            // Get the user to be kicked
+            var kickedUser = _userRepository.GetById(model.KickedUserId);
+            if (kickedUser == null)
+            {
+                await Clients.Caller.SendAsync("Error", "User to kick not found");
+                return;
+            }
+
+            // Check if user is in the room
+            if (!room.JoinedUsers.Contains(model.KickedUserId))
+            {
+                await Clients.Caller.SendAsync("Error", "User is not in this room");
+                return;
+            }
+
+            // Remove user from room's JoinedUsers list
+            room.JoinedUsers.Remove(model.KickedUserId);
+            _roomRepository.Update(room);
+
+            // Remove room from user's JoinedRooms list
+            if (kickedUser.JoinedRooms != null && kickedUser.JoinedRooms.Contains(model.RoomId))
+            {
+                kickedUser.JoinedRooms.Remove(model.RoomId);
+            }
+
+            // Clear user's current room if they're in it
+            if (kickedUser.CurrentRoomId == model.RoomId)
+            {
+                kickedUser.CurrentRoomId = null;
+            }
+
+            _userRepository.Update(kickedUser);
+
+            // Send a kick message to the room
+            var kickMessageTime = DateTime.UtcNow.AddMilliseconds(1);
+            var kickMessageEntity = new MessageEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = model.KickerUserId, // Message from the kicker
+                RoomId = model.RoomId,
+                Content = $"{kickedUser.UserName} byl vyhozen z místnosti",
+                IsImage = false,
+                SentTime = kickMessageTime
+            };
+
+            _messageRepository.Add(kickMessageEntity);
+
+            // Send kick message to all users in the room
+            var roomId = room.Id!.Value;
+            await Clients.Group(roomId.ToString()).SendAsync("ReceiveMessage", new
+            {
+                UserId = model.KickerUserId.ToString(),
+                UserName = kicker.UserName,
+                Content = kickMessageEntity.Content,
+                IsImage = "false",
+                RoomId = model.RoomId.ToString(),
+                SentTime = kickMessageTime.ToString("o")
+            });
+
+            // Remove kicked user from SignalR group
+            if (!string.IsNullOrEmpty(kickedUser.ConnectionId))
+            {
+                await Groups.RemoveFromGroupAsync(kickedUser.ConnectionId, roomId.ToString());
+            }
+
+            // Notify the kicked user
+            if (!string.IsNullOrEmpty(kickedUser.ConnectionId))
+            {
+                await Clients.Client(kickedUser.ConnectionId).SendAsync("UserKicked", new { RoomId = model.RoomId });
+            }
+
+            // Send leave notification to others
+            var receiveModel = new ReceiveLeaveModel(kickedUser.Id, model.RoomId);
+            await Clients.Group(roomId.ToString()).SendAsync("ReceiveLeave", receiveModel);
+
+            // If room is now empty, delete it
+            if (!room.JoinedUsers.Any())
+            {
+                _messageRepository.DeleteByRoomId(model.RoomId);
+                _roomRepository.Delete(model.RoomId);
+                await Clients.Group(roomId.ToString()).SendAsync("RoomDeleted", new { RoomId = model.RoomId });
+            }
+        }
+        catch (Exception ex)
+        {
+            await Clients.Caller.SendAsync("Error", $"An error occurred while kicking the user: {ex.Message}");
+        }
     }
 }

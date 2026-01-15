@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import '../widgets/glass_message_bubble.dart';
-import 'chat_overview_screen.dart';
 import '../widgets/chat_app_bar.dart';
 import '../widgets/message_input_section.dart';
 import '../widgets/message_bubble_builder.dart';
 import '../widgets/chat_background.dart';
 import '../services/signalr_service.dart';
 import '../services/app_state.dart';
+import '../services/image_service.dart';
+import 'connect_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final String groupName;
@@ -41,6 +39,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       // Set up message listeners before connecting
       _signalRService.onReceiveMessage((message) {
+        if (!mounted) return;
         print('Received message: $message'); // Debug
         setState(() {
           // Try both PascalCase and camelCase property names
@@ -49,21 +48,30 @@ class _ChatScreenState extends State<ChatScreen> {
           final content = (message['Content'] ?? message['content'])?.toString() ?? '';
           final isImage = (message['IsImage'] ?? message['isImage'])?.toString() ?? 'false';
           
-          print('Parsed - userId: $userId, userName: $userName, content: "$content"'); // Debug
+          print('Parsed - userId: $userId, userName: $userName, content: "$content", isImage: $isImage'); // Debug
           
-          // Check if content is an image path
-          final bool isImageMessage = content.startsWith('[IMAGE]');
-          final String? imagePath = isImageMessage ? content.substring(7) : null;
+          // Check if sender is blocked - don't show messages from blocked users
+          if (_appState.isUserBlocked(userId)) {
+            print('Message from blocked user $userId - ignoring');
+            return;
+          }
+          
+          // Check if message is an image
+          final bool isImageMessage = isImage == "true" || isImage == "True";
+          final String? imagePath = isImageMessage ? content : null;
           
           final isMe = userId == _appState.currentUserId;
+          final finalImagePath = imagePath != null ? ImageService.getImageUrl(imagePath) : null;
+          print('Adding message - isImage: $isImageMessage, imagePath: $finalImagePath, content: $content');
           _messages.add({
+            "userId": userId, // Store userId for filtering blocked users
             "sender": isMe 
                 ? "${_appState.currentUserName ?? userName ?? 'You'} (you)" 
                 : (userName ?? "User $userId"),
             "content": isImageMessage ? "" : content,
             "isMe": isMe,
-            "isImage": isImageMessage || isImage == "true",
-            if (imagePath != null) "imagePath": imagePath,
+            "isImage": isImageMessage,
+            if (finalImagePath != null) "imagePath": finalImagePath,
           });
         });
         _scrollToBottom();
@@ -71,30 +79,56 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Listen for loaded messages
       _signalRService.onLoadMessages((messages) {
+        if (!mounted) return;
         print('Loaded messages: $messages'); // Debug
         setState(() {
           _messages.clear();
-          for (var msg in messages) {
-            final msgMap = msg as Map<String, dynamic>;
+          
+          // Convert to list and sort by SentTime to ensure proper order
+          final messagesList = messages.map((msg) => msg as Map<String, dynamic>).toList();
+          
+          // Sort by SentTime (ascending - oldest first, newest last)
+          messagesList.sort((a, b) {
+            final timeA = (a['SentTime'] ?? a['sentTime'])?.toString() ?? '';
+            final timeB = (b['SentTime'] ?? b['sentTime'])?.toString() ?? '';
+            if (timeA.isEmpty || timeB.isEmpty) return 0;
+            try {
+              final dateA = DateTime.parse(timeA);
+              final dateB = DateTime.parse(timeB);
+              return dateA.compareTo(dateB);
+            } catch (e) {
+              return 0;
+            }
+          });
+          
+          for (var msgMap in messagesList) {
             // Try both PascalCase and camelCase property names
             final userId = (msgMap['UserId'] ?? msgMap['userId'])?.toString() ?? '';
             final userName = (msgMap['UserName'] ?? msgMap['userName'])?.toString();
             final content = (msgMap['Content'] ?? msgMap['content'])?.toString() ?? '';
-            print('Loaded message - userId: $userId, userName: $userName, content: "$content"'); // Debug
+            final isImage = (msgMap['IsImage'] ?? msgMap['isImage'])?.toString() ?? 'false';
+            print('Loaded message - userId: $userId, userName: $userName, content: "$content", isImage: $isImage'); // Debug
             
-            // Check if content is an image path
-            final bool isImageMessage = content.startsWith('[IMAGE]');
-            final String? imagePath = isImageMessage ? content.substring(7) : null;
+            // Check if sender is blocked - don't show messages from blocked users
+            if (_appState.isUserBlocked(userId)) {
+              print('Message from blocked user $userId - ignoring');
+              continue;
+            }
+            
+            // Check if message is an image
+            final bool isImageMessage = isImage == "true" || isImage == "True";
+            final String? imagePath = isImageMessage ? content : null;
             
             final isMe = userId == _appState.currentUserId;
             _messages.add({
+              "userId": userId, // Store userId for filtering blocked users
               "sender": isMe 
                   ? "${_appState.currentUserName ?? userName ?? 'You'} (you)" 
                   : (userName ?? "User $userId"),
               "content": isImageMessage ? "" : content,
               "isMe": isMe,
               "isImage": isImageMessage,
-              if (imagePath != null) "imagePath": imagePath,
+              if (imagePath != null) "imagePath": ImageService.getImageUrl(imagePath),
             });
           }
         });
@@ -107,8 +141,88 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       });
 
-      // Connect to SignalR
-      await _signalRService.start();
+      // Listen for block updates
+      _signalRService.onBlockUpdated((data) async {
+        if (!mounted) return;
+        print('[BLOCK UPDATE] Block status changed: $data');
+        final blockedUserId = (data['BlockedUserId'] ?? data['blockedUserId'])?.toString();
+        final isBlocked = (data['IsBlocked'] ?? data['isBlocked']) == true;
+        
+        if (blockedUserId != null && mounted) {
+          // Update AppState
+          if (isBlocked) {
+            _appState.addBlockedUser(blockedUserId);
+          } else {
+            _appState.removeBlockedUser(blockedUserId);
+          }
+          
+          if (mounted) {
+            setState(() {
+              // Filter out messages from blocked user if blocking
+              if (isBlocked) {
+                // Remove messages from the blocked user
+                _messages.removeWhere((msg) => msg['userId']?.toString() == blockedUserId);
+                print('[BLOCK UPDATE] Removed messages from blocked user: $blockedUserId');
+              }
+            });
+            
+            // If unblocking, reload messages to show previously hidden ones
+            if (!isBlocked) {
+              print('[BLOCK UPDATE] User unblocked: $blockedUserId - reloading messages');
+              try {
+                // Reload messages from the server to show previously hidden messages
+                await _signalRService.sendShowMessages();
+              } catch (e) {
+                print('[BLOCK UPDATE] Error reloading messages after unblock: $e');
+              }
+            }
+          }
+        }
+      });
+
+      // Listen for user kicked event
+      _signalRService.onUserKicked((data) {
+        if (!mounted) return;
+        print('User kicked event received: $data');
+        final roomId = (data['RoomId'] ?? data['roomId'])?.toString().replaceAll('#', '').trim();
+        final currentRoomId = _appState.currentRoomId?.replaceAll('#', '').trim();
+        
+        // Only handle if kicked from the current room
+        if (roomId != null && currentRoomId != null && roomId == currentRoomId && mounted) {
+          // Clear room from app state
+          _appState.clearRoom();
+          
+          // Stop SignalR connection
+          _signalRService.stop();
+          
+          // Show warning message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Byli jste vyhozeni z této místnosti'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+            
+            // Navigate back to home screen
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ConnectScreen(),
+              ),
+              (route) => false,
+            );
+          }
+        }
+      });
+
+      // Connect to SignalR - ensure connection is active
+      if (!_signalRService.isConnected) {
+        await _signalRService.start();
+      } else {
+        print('SignalR already connected, reusing existing connection');
+      }
       
       // Ensure user and room are set
       if (_appState.currentUserId == null) {
@@ -117,13 +231,23 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       if (widget.roomId != null && _appState.currentUserId != null) {
-        _appState.setRoom(widget.roomId!);
-        // Join the room
+        // Register connection first to ensure ConnectionId is set
+        await _signalRService.registerConnection(_appState.currentUserId!);
+        
+        // Always join the room to ensure backend has CurrentRoomId set
+        // (even if we think we're already in it, the backend state might be different)
         await _signalRService.sendJoin(
           userId: _appState.currentUserId!,
           roomId: widget.roomId!,
         );
-        // Load existing messages
+        
+        // Wait a bit for the join to complete on the backend
+        await Future.delayed(Duration(milliseconds: 200));
+        
+        // Set room in app state after successful join
+        _appState.setRoom(widget.roomId!);
+        
+        // Load existing messages after joining
         await _signalRService.sendShowMessages();
       }
 
@@ -144,18 +268,44 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _handleBackNavigation() async {
+    final roomId = _appState.currentRoomId;
+    
+    // Just leave the room and navigate back (temporary leave - user stays in lists)
+    if (_isConnected && _appState.currentUserId != null && roomId != null) {
+      try {
+        await _signalRService.sendLeave(
+          userId: _appState.currentUserId!,
+          roomId: roomId,
+          permanentLeave: false, // Back arrow = temporary leave
+        );
+        print('Left room via SignalR (temporary)');
+      } catch (e) {
+        print('Error leaving room: $e');
+      }
+    }
+    
+    // Navigate back and refresh rooms list
+    if (mounted) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+        // Refresh rooms when returning to previous screen
+        // This will be handled by didChangeDependencies in ConnectScreen
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ConnectScreen(),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
-    // Leave the room before disposing (fire and forget)
-    if (_isConnected && _appState.currentUserId != null && _appState.currentRoomId != null) {
-      _signalRService.sendLeave(
-        userId: _appState.currentUserId!,
-        roomId: _appState.currentRoomId!,
-      ).catchError((e) {
-        print('Error leaving room on dispose: $e');
-      });
-    }
-    _signalRService.stop();
+    // Don't stop SignalR connection here - it's a singleton shared across screens
+    // The connection should persist across navigations
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -177,29 +327,43 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       try {
-        // Send image path as message content (full implementation would upload to server)
+        // Show loading indicator
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nahrávání obrázku...'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+
+        // Upload image to server
+        final imagePath = await ImageService.uploadImage(pickedFile);
+
+        if (imagePath == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Nepodařilo se nahrát obrázek')),
+            );
+          }
+          return;
+        }
+
+        // Send message with image path
+        // Don't add to local messages - let SignalR handle it via onReceiveMessage
         await _signalRService.sendMessage(
           userId: userId,
-          content: '[IMAGE]${pickedFile.path}',
+          content: imagePath,
           roomId: roomId,
+          isImage: true,
         );
-        
-        // Add to local messages for immediate display
-        setState(() {
-          _messages.add({
-            "sender": "${_appState.currentUserName ?? 'You'} (you)",
-            "content": "",
-            "isMe": true,
-            "imagePath": pickedFile.path,
-            "isImage": true,
-          });
-        });
-        _scrollToBottom();
       } catch (e) {
         print('Error sending image: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send image: $e')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Chyba při odesílání obrázku: $e')),
+          );
+        }
       }
     }
   }
@@ -255,17 +419,23 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: ChatAppBar(
-        chatName: widget.groupName, 
-        chatId: widget.roomId != null 
-            ? '#${widget.roomId!.length >= 8 ? widget.roomId!.substring(0, 8) : widget.roomId!}' 
-            : "#31161213",
-        fullRoomId: widget.roomId, // Pass full room ID for API calls
-        signalRService: _signalRService,
-      ),
-      body: Stack(
+    return WillPopScope(
+      onWillPop: () async {
+        await _handleBackNavigation();
+        return false; // Prevent default navigation, we handle it ourselves
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: ChatAppBar(
+          chatName: widget.groupName, 
+          chatId: widget.roomId != null 
+              ? '#${widget.roomId!.length >= 8 ? widget.roomId!.substring(0, 8) : widget.roomId!}' 
+              : "#31161213",
+          fullRoomId: widget.roomId, // Pass full room ID for API calls
+          signalRService: _signalRService,
+          onBackPressed: _handleBackNavigation, // Handle back button in AppBar
+        ),
+        body: Stack(
         children: [
           ChatBackground(),
           Positioned.fill(
@@ -287,7 +457,12 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final message = _messages[_messages.length - 1 - index];
-                      return MessageBubbleBuilder(message: message);
+                      // Use a unique key based on message content and imagePath to force rebuild
+                      final messageKey = '${message["content"]}_${message["imagePath"]}_$index';
+                      return MessageBubbleBuilder(
+                        key: ValueKey(messageKey),
+                        message: message,
+                      );
                     },
                   ),
           ),
@@ -297,6 +472,7 @@ class _ChatScreenState extends State<ChatScreen> {
             onAttachPressed: _pickImage,
           ),
         ],
+      ),
       ),
     );
   }
