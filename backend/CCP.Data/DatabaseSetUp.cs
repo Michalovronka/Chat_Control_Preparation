@@ -28,7 +28,8 @@ namespace CCP.Data
                 UserState TEXT,
                 CurrentRoomId TEXT,
                 ConnectionId TEXT,
-                JoinedRooms TEXT
+                JoinedRooms TEXT,
+                BlockedUsers TEXT
             );";
 
             using var cmd = new SqliteCommand(sql, connection);
@@ -46,6 +47,14 @@ namespace CCP.Data
             try
             {
                 var alterSql = "ALTER TABLE Users ADD COLUMN JoinedRooms TEXT;";
+                using var alterCmd = new SqliteCommand(alterSql, connection);
+                alterCmd.ExecuteNonQuery();
+            }
+            catch { /* Column already exists */ }
+
+            try
+            {
+                var alterSql = "ALTER TABLE Users ADD COLUMN BlockedUsers TEXT;";
                 using var alterCmd = new SqliteCommand(alterSql, connection);
                 alterCmd.ExecuteNonQuery();
             }

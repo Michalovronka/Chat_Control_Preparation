@@ -1,6 +1,10 @@
 import 'package:signalr_netcore/signalr_client.dart';
 
 class SignalRService {
+  // Singleton pattern
+  static final SignalRService _instance = SignalRService._internal();
+  factory SignalRService() => _instance;
+
   // Use HTTP for development (easier for mobile/web)
   static const String baseUrl = 'http://localhost:5202';
   static const String hubPath = '/chathub';
@@ -9,7 +13,7 @@ class SignalRService {
   
   HubConnection get connection => _connection;
   
-  SignalRService() {
+  SignalRService._internal() {
     _connection = HubConnectionBuilder()
         .withUrl('$baseUrl$hubPath')
         .withAutomaticReconnect()
@@ -32,6 +36,29 @@ class SignalRService {
   }
   
   bool get isConnected => _connection.state == HubConnectionState.Connected;
+  
+  // Ensure connection is ready before invoking methods
+  Future<void> ensureConnected() async {
+    if (_connection.state == HubConnectionState.Connected) {
+      return;
+    }
+    
+    if (_connection.state == HubConnectionState.Disconnected) {
+      await start();
+    }
+    
+    // Wait for connection to be established (with timeout)
+    int retries = 0;
+    const maxRetries = 20; // 2 seconds max wait
+    while (_connection.state != HubConnectionState.Connected && retries < maxRetries) {
+      await Future.delayed(Duration(milliseconds: 100));
+      retries++;
+    }
+    
+    if (_connection.state != HubConnectionState.Connected) {
+      throw Exception('Failed to establish SignalR connection. State: ${_connection.state}');
+    }
+  }
   
   Future<void> stop() async {
     try {
@@ -77,6 +104,9 @@ class SignalRService {
     String? message,
   }) async {
     try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
       await _connection.invoke('SendJoin', args: [
         {
           'UserId': userId,
@@ -193,6 +223,9 @@ class SignalRService {
   // Request to show messages for current room
   Future<void> sendShowMessages() async {
     try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
       // SendShowMessagesModel expects IReadOnlyList<MessageDto> Message, but we send empty list to request
       await _connection.invoke('SendShowMessages', args: [
         {
@@ -299,6 +332,9 @@ class SignalRService {
   // Register connection - sets ConnectionId for the user
   Future<void> registerConnection(String userId) async {
     try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
       print('[CONNECTION REGISTER] Registering connection for user: $userId');
       await _connection.invoke('RegisterConnection', args: [
         {
@@ -310,5 +346,37 @@ class SignalRService {
       print('[CONNECTION ERROR] Error registering connection: $e');
       rethrow;
     }
+  }
+
+  // Block/Unblock user
+  Future<void> sendBlock({
+    required String userId,
+    required String blockedUserId,
+    required bool isBlock,
+  }) async {
+    try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
+      await _connection.invoke('SendBlock', args: [
+        {
+          'UserId': userId,
+          'BlockedUserId': blockedUserId,
+          'IsBlock': isBlock,
+        }
+      ]);
+    } catch (e) {
+      print('Error blocking/unblocking user: $e');
+      rethrow;
+    }
+  }
+
+  // Listen to block updates
+  void onBlockUpdated(Function(Map<String, dynamic>) callback) {
+    _connection.on('BlockUpdated', (arguments) {
+      if (arguments != null && arguments.isNotEmpty) {
+        callback(arguments[0] as Map<String, dynamic>);
+      }
+    });
   }
 }

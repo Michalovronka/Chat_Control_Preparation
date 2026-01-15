@@ -17,6 +17,8 @@ class ParticipantTile extends StatelessWidget {
   final String? currentUserId;
   final String? roomOwnerId; // ID of the room owner
   final SignalRService? signalRService; // SignalR service for kicking
+  final bool isBlocked; // Whether this user is blocked
+  final VoidCallback? onBlockToggle; // Callback when block status changes
 
   const ParticipantTile({
     super.key,
@@ -27,6 +29,8 @@ class ParticipantTile extends StatelessWidget {
     this.currentUserId,
     this.roomOwnerId,
     this.signalRService,
+    this.isBlocked = false,
+    this.onBlockToggle,
   });
 
   @override
@@ -105,6 +109,38 @@ class ParticipantTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Block/Unblock button (visible to all users, except themselves)
+            if (currentUserId != null && 
+                participantId != null && 
+                currentUserId != participantId &&
+                signalRService != null &&
+                onBlockToggle != null)
+              IconButton(
+                icon: Icon(
+                  isBlocked ? Icons.block : Icons.block_outlined,
+                  color: isBlocked ? Colors.orange : Colors.white70,
+                ),
+                onPressed: () async {
+                  try {
+                    // sendBlock will ensure connection is ready before invoking
+                    // Toggle block status
+                    await signalRService!.sendBlock(
+                      userId: currentUserId!,
+                      blockedUserId: participantId!,
+                      isBlock: !isBlocked,
+                    );
+
+                    // Call callback to update UI
+                    onBlockToggle!();
+                  } catch (e) {
+                    print('Error blocking/unblocking user: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Chyba při blokování/odblokování uživatele: $e')),
+                    );
+                  }
+                },
+                tooltip: isBlocked ? 'Odblokovat' : 'Blokovat',
+              ),
             // Only show kick button if current user is the room owner and not trying to kick themselves
             if (currentUserId != null && 
                 participantId != null && 

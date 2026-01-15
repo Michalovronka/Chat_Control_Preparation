@@ -9,12 +9,32 @@ class AppState {
   String? _currentUserId;
   String? _currentRoomId;
   String? _currentUserName;
-  List<Map<String, dynamic>> _receivedInvites = []; // List of invites: {senderUserId, senderUserName, roomId}
+  final List<Map<String, dynamic>> _receivedInvites = []; // List of invites: {senderUserId, senderUserName, roomId}
+  List<String> _blockedUsers = []; // List of blocked user IDs
 
   String? get currentUserId => _currentUserId;
   String? get currentRoomId => _currentRoomId;
   String? get currentUserName => _currentUserName;
   List<Map<String, dynamic>> get receivedInvites => List.unmodifiable(_receivedInvites);
+  List<String> get blockedUsers => List.unmodifiable(_blockedUsers);
+
+  bool isUserBlocked(String userId) {
+    return _blockedUsers.contains(userId);
+  }
+
+  void setBlockedUsers(List<String> userIds) {
+    _blockedUsers = List.from(userIds);
+  }
+
+  void addBlockedUser(String userId) {
+    if (!_blockedUsers.contains(userId)) {
+      _blockedUsers.add(userId);
+    }
+  }
+
+  void removeBlockedUser(String userId) {
+    _blockedUsers.remove(userId);
+  }
 
   void setUser(String userId, String userName) {
     _currentUserId = userId;
@@ -55,6 +75,7 @@ class AppState {
     _currentRoomId = null;
     _currentUserName = null;
     _receivedInvites.clear();
+    _blockedUsers.clear();
   }
 
   // Generate a GUID format string

@@ -60,9 +60,9 @@ namespace CCP.Data
 
             var sql = @"
             INSERT INTO Users
-            (Id, UserName, PasswordHash, LastTimeSeen, StatusMessage, UserState, CurrentRoomId, ConnectionId, JoinedRooms)
+            (Id, UserName, PasswordHash, LastTimeSeen, StatusMessage, UserState, CurrentRoomId, ConnectionId, JoinedRooms, BlockedUsers)
             VALUES
-            (@Id, @UserName, @PasswordHash, @LastTimeSeen, @StatusMessage, @UserState, @CurrentRoomId, @ConnectionId, @JoinedRooms);";
+            (@Id, @UserName, @PasswordHash, @LastTimeSeen, @StatusMessage, @UserState, @CurrentRoomId, @ConnectionId, @JoinedRooms, @BlockedUsers);";
 
             using var cmd = new SqliteCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", entity.Id.ToString());
@@ -75,6 +75,9 @@ namespace CCP.Data
             cmd.Parameters.AddWithValue("@ConnectionId", (object?)entity.ConnectionId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@JoinedRooms", entity.JoinedRooms != null && entity.JoinedRooms.Any() 
                 ? JsonSerializer.Serialize(entity.JoinedRooms) 
+                : (object?)DBNull.Value);
+            cmd.Parameters.AddWithValue("@BlockedUsers", entity.BlockedUsers != null && entity.BlockedUsers.Any() 
+                ? JsonSerializer.Serialize(entity.BlockedUsers) 
                 : (object?)DBNull.Value);
 
             cmd.ExecuteNonQuery();
@@ -94,7 +97,8 @@ namespace CCP.Data
                 UserState = @UserState,
                 CurrentRoomId = @CurrentRoomId,
                 ConnectionId = @ConnectionId,
-                JoinedRooms = @JoinedRooms
+                JoinedRooms = @JoinedRooms,
+                BlockedUsers = @BlockedUsers
             WHERE Id = @Id;";
 
             using var cmd = new SqliteCommand(sql, conn);
@@ -108,6 +112,9 @@ namespace CCP.Data
             cmd.Parameters.AddWithValue("@ConnectionId", (object?)entity.ConnectionId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@JoinedRooms", entity.JoinedRooms != null && entity.JoinedRooms.Any() 
                 ? JsonSerializer.Serialize(entity.JoinedRooms) 
+                : (object?)DBNull.Value);
+            cmd.Parameters.AddWithValue("@BlockedUsers", entity.BlockedUsers != null && entity.BlockedUsers.Any() 
+                ? JsonSerializer.Serialize(entity.BlockedUsers) 
                 : (object?)DBNull.Value);
 
             cmd.ExecuteNonQuery();
@@ -140,6 +147,20 @@ namespace CCP.Data
                 }
             }
 
+            var blockedUsersJson = reader["BlockedUsers"] == DBNull.Value ? null : reader["BlockedUsers"]?.ToString();
+            List<Guid> blockedUsers = new List<Guid>();
+            if (!string.IsNullOrEmpty(blockedUsersJson))
+            {
+                try
+                {
+                    blockedUsers = JsonSerializer.Deserialize<List<Guid>>(blockedUsersJson) ?? new List<Guid>();
+                }
+                catch
+                {
+                    blockedUsers = new List<Guid>();
+                }
+            }
+
             return new UserEntity
             {
                 Id = Guid.Parse(reader["Id"].ToString()!),
@@ -150,7 +171,8 @@ namespace CCP.Data
                 UserState = reader["UserState"].ToString()!,
                 CurrentRoomId = reader["CurrentRoomId"] == DBNull.Value ? null : Guid.Parse(reader["CurrentRoomId"].ToString()!),
                 ConnectionId = reader["ConnectionId"] == DBNull.Value ? null : reader["ConnectionId"].ToString(),
-                JoinedRooms = joinedRooms
+                JoinedRooms = joinedRooms,
+                BlockedUsers = blockedUsers
             };
         }
     }

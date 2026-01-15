@@ -40,6 +40,7 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
     super.initState();
     _currentUserId = _appState.currentUserId;
     _signalRService = widget.signalRService;
+    _loadBlockedUsers();
     _loadData();
     
     // Set up SignalR listeners for real-time updates if service is available
@@ -48,11 +49,25 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
     }
   }
 
+  Future<void> _loadBlockedUsers() async {
+    if (_appState.currentUserId == null) return;
+    
+    try {
+      final blockedUsers = await UserService.getBlockedUsers(_appState.currentUserId!);
+      if (blockedUsers != null) {
+        _appState.setBlockedUsers(blockedUsers);
+      }
+    } catch (e) {
+      print('Error loading blocked users: $e');
+    }
+  }
+
   void _setupSignalRListeners() {
     if (_signalRService == null) return;
     
     // Listen for users joining
     _signalRService!.onReceiveJoin((data) {
+      if (!mounted) return;
       print('User joined: $data');
       // Refresh participants list
       _loadData();
@@ -60,9 +75,29 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
     
     // Listen for users leaving
     _signalRService!.onReceiveLeave((data) {
+      if (!mounted) return;
       print('User left: $data');
       // Refresh participants list
       _loadData();
+    });
+
+    // Listen for block updates
+    _signalRService!.onBlockUpdated((data) {
+      if (!mounted) return;
+      print('Block updated: $data');
+      final blockedUserId = (data['BlockedUserId'] ?? data['blockedUserId'])?.toString();
+      final isBlocked = (data['IsBlocked'] ?? data['isBlocked']) == true;
+      
+      if (blockedUserId != null) {
+        if (isBlocked) {
+          _appState.addBlockedUser(blockedUserId);
+        } else {
+          _appState.removeBlockedUser(blockedUserId);
+        }
+        if (mounted) {
+          setState(() {});
+        }
+      }
     });
   }
 
@@ -75,16 +110,20 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
 
   Future<void> _loadData() async {
     if (widget.roomId == null) {
-      setState(() {
-        _isLoading = false;
-        participants = [];
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          participants = [];
+        });
+      }
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       // Load participants - ensure roomId is a valid GUID
@@ -102,64 +141,74 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
           final firstUser = users.first;
           final firstUserId = (firstUser['id'] ?? firstUser['Id'])?.toString();
           
-          setState(() {
-            _roomOwnerId = firstUserId;
-            // Normalize room ID for comparison (remove # and trim)
-            final normalizedRoomId = roomIdToUse.replaceAll('#', '').trim();
-            
-            participants = users.map((user) {
-              final userId = user['id'] ?? user['Id'];
-              final userName = user['userName'] ?? user['UserName'] ?? 'Unknown';
-              final userState = user['userState'] ?? user['UserState'] ?? 'Offline';
-              final currentRoomIdRaw = user['currentRoomId'] ?? user['CurrentRoomId'];
-              final currentRoomId = currentRoomIdRaw != null ? currentRoomIdRaw.toString().replaceAll('#', '').trim() : null;
+          if (mounted) {
+            setState(() {
+              _roomOwnerId = firstUserId;
+              // Normalize room ID for comparison (remove # and trim)
+              final normalizedRoomId = roomIdToUse.replaceAll('#', '').trim();
               
-              // Check if user is currently in this room
-              final isInRoom = currentRoomId != null && currentRoomId == normalizedRoomId;
-              
-              print('Participant: $userName (ID: $userId, State: $userState, CurrentRoomId: $currentRoomId, InRoom: $isInRoom)');
-              return {
-                'id': userId?.toString() ?? '',
-                'name': userName,
-                'status': isInRoom ? ParticipantStatus.online : ParticipantStatus.offline, // Green if in room, gray if away
-                'isInRoom': isInRoom,
-              };
-            }).where((p) => p['id'] != null && p['id']!.isNotEmpty).toList();
-          });
+              participants = users.map((user) {
+                final userId = user['id'] ?? user['Id'];
+                final userName = user['userName'] ?? user['UserName'] ?? 'Unknown';
+                final userState = user['userState'] ?? user['UserState'] ?? 'Offline';
+                final currentRoomIdRaw = user['currentRoomId'] ?? user['CurrentRoomId'];
+                final currentRoomId = currentRoomIdRaw?.toString().replaceAll('#', '').trim();
+                
+                // Check if user is currently in this room
+                final isInRoom = currentRoomId != null && currentRoomId == normalizedRoomId;
+                
+                print('Participant: $userName (ID: $userId, State: $userState, CurrentRoomId: $currentRoomId, InRoom: $isInRoom)');
+                return {
+                  'id': userId?.toString() ?? '',
+                  'name': userName,
+                  'status': isInRoom ? ParticipantStatus.online : ParticipantStatus.offline, // Green if in room, gray if away
+                  'isInRoom': isInRoom,
+                };
+              }).where((p) => p['id'] != null && p['id']!.isNotEmpty).toList();
+            });
+          }
           print('Loaded ${participants.length} participants, room owner: $_roomOwnerId');
         } else {
           print('No users found in room (empty list)');
+          if (mounted) {
+            setState(() {
+              participants = [];
+            });
+          }
+        }
+      } else {
+        print('No users found in room (null response)');
+        if (mounted) {
           setState(() {
             participants = [];
           });
         }
-      } else {
-        print('No users found in room (null response)');
-        setState(() {
-          participants = [];
-        });
       }
 
       // Load invite code - get room details which should include invite code
       String roomIdForInvite = widget.roomId!.replaceAll('#', '').trim();
       final room = await RoomService.getRoom(roomIdForInvite);
-      if (room != null) {
-        setState(() {
-          inviteCode = room['inviteCode'] ?? 
-                      room['InviteCode'] ?? 
-                      'N/A';
-        });
-      } else {
-        setState(() {
-          inviteCode = 'N/A';
-        });
+      if (mounted) {
+        if (room != null) {
+          setState(() {
+            inviteCode = room['inviteCode'] ?? 
+                        room['InviteCode'] ?? 
+                        'N/A';
+          });
+        } else {
+          setState(() {
+            inviteCode = 'N/A';
+          });
+        }
       }
     } catch (e) {
       print('Error loading overview data: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -363,16 +412,28 @@ class _ChatOverviewScreenState extends State<ChatOverviewScreen> {
                                       padding: EdgeInsets.zero,
                                       itemCount: participants.length,
                                       itemBuilder: (context, index) {
+                                        final participantId = participants[index]["id"]?.toString();
                                         return Transform.translate(
                                           offset: Offset(0, index == 0 ? -4 : 0),
                                           child: ParticipantTile(
-                                            participantId: participants[index]["id"]?.toString(),
+                                            participantId: participantId,
                                             participantName: participants[index]["name"],
                                             status: participants[index]["status"],
                                             roomId: widget.roomId,
                                             currentUserId: _currentUserId,
                                             roomOwnerId: _roomOwnerId,
                                             signalRService: _signalRService,
+                                            isBlocked: participantId != null 
+                                                ? _appState.isUserBlocked(participantId)
+                                                : false,
+                                            onBlockToggle: () {
+                                              // Reload blocked users and refresh UI
+                                              _loadBlockedUsers().then((_) {
+                                                if (mounted) {
+                                                  setState(() {});
+                                                }
+                                              });
+                                            },
                                           ),
                                         );
                                       },

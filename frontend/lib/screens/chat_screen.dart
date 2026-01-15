@@ -39,6 +39,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       // Set up message listeners before connecting
       _signalRService.onReceiveMessage((message) {
+        if (!mounted) return;
         print('Received message: $message'); // Debug
         setState(() {
           // Try both PascalCase and camelCase property names
@@ -49,6 +50,12 @@ class _ChatScreenState extends State<ChatScreen> {
           
           print('Parsed - userId: $userId, userName: $userName, content: "$content", isImage: $isImage'); // Debug
           
+          // Check if sender is blocked - don't show messages from blocked users
+          if (_appState.isUserBlocked(userId)) {
+            print('Message from blocked user $userId - ignoring');
+            return;
+          }
+          
           // Check if message is an image
           final bool isImageMessage = isImage == "true" || isImage == "True";
           final String? imagePath = isImageMessage ? content : null;
@@ -57,6 +64,7 @@ class _ChatScreenState extends State<ChatScreen> {
           final finalImagePath = imagePath != null ? ImageService.getImageUrl(imagePath) : null;
           print('Adding message - isImage: $isImageMessage, imagePath: $finalImagePath, content: $content');
           _messages.add({
+            "userId": userId, // Store userId for filtering blocked users
             "sender": isMe 
                 ? "${_appState.currentUserName ?? userName ?? 'You'} (you)" 
                 : (userName ?? "User $userId"),
@@ -71,6 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Listen for loaded messages
       _signalRService.onLoadMessages((messages) {
+        if (!mounted) return;
         print('Loaded messages: $messages'); // Debug
         setState(() {
           _messages.clear();
@@ -100,12 +109,19 @@ class _ChatScreenState extends State<ChatScreen> {
             final isImage = (msgMap['IsImage'] ?? msgMap['isImage'])?.toString() ?? 'false';
             print('Loaded message - userId: $userId, userName: $userName, content: "$content", isImage: $isImage'); // Debug
             
+            // Check if sender is blocked - don't show messages from blocked users
+            if (_appState.isUserBlocked(userId)) {
+              print('Message from blocked user $userId - ignoring');
+              continue;
+            }
+            
             // Check if message is an image
             final bool isImageMessage = isImage == "true" || isImage == "True";
             final String? imagePath = isImageMessage ? content : null;
             
             final isMe = userId == _appState.currentUserId;
             _messages.add({
+              "userId": userId, // Store userId for filtering blocked users
               "sender": isMe 
                   ? "${_appState.currentUserName ?? userName ?? 'You'} (you)" 
                   : (userName ?? "User $userId"),
@@ -125,14 +141,54 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       });
 
+      // Listen for block updates
+      _signalRService.onBlockUpdated((data) async {
+        if (!mounted) return;
+        print('[BLOCK UPDATE] Block status changed: $data');
+        final blockedUserId = (data['BlockedUserId'] ?? data['blockedUserId'])?.toString();
+        final isBlocked = (data['IsBlocked'] ?? data['isBlocked']) == true;
+        
+        if (blockedUserId != null && mounted) {
+          // Update AppState
+          if (isBlocked) {
+            _appState.addBlockedUser(blockedUserId);
+          } else {
+            _appState.removeBlockedUser(blockedUserId);
+          }
+          
+          if (mounted) {
+            setState(() {
+              // Filter out messages from blocked user if blocking
+              if (isBlocked) {
+                // Remove messages from the blocked user
+                _messages.removeWhere((msg) => msg['userId']?.toString() == blockedUserId);
+                print('[BLOCK UPDATE] Removed messages from blocked user: $blockedUserId');
+              }
+            });
+            
+            // If unblocking, reload messages to show previously hidden ones
+            if (!isBlocked) {
+              print('[BLOCK UPDATE] User unblocked: $blockedUserId - reloading messages');
+              try {
+                // Reload messages from the server to show previously hidden messages
+                await _signalRService.sendShowMessages();
+              } catch (e) {
+                print('[BLOCK UPDATE] Error reloading messages after unblock: $e');
+              }
+            }
+          }
+        }
+      });
+
       // Listen for user kicked event
       _signalRService.onUserKicked((data) {
+        if (!mounted) return;
         print('User kicked event received: $data');
         final roomId = (data['RoomId'] ?? data['roomId'])?.toString().replaceAll('#', '').trim();
         final currentRoomId = _appState.currentRoomId?.replaceAll('#', '').trim();
         
         // Only handle if kicked from the current room
-        if (roomId != null && currentRoomId != null && roomId == currentRoomId) {
+        if (roomId != null && currentRoomId != null && roomId == currentRoomId && mounted) {
           // Clear room from app state
           _appState.clearRoom();
           
@@ -161,8 +217,12 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       });
 
-      // Connect to SignalR
-      await _signalRService.start();
+      // Connect to SignalR - ensure connection is active
+      if (!_signalRService.isConnected) {
+        await _signalRService.start();
+      } else {
+        print('SignalR already connected, reusing existing connection');
+      }
       
       // Ensure user and room are set
       if (_appState.currentUserId == null) {
@@ -171,13 +231,23 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       if (widget.roomId != null && _appState.currentUserId != null) {
-        _appState.setRoom(widget.roomId!);
-        // Join the room
+        // Register connection first to ensure ConnectionId is set
+        await _signalRService.registerConnection(_appState.currentUserId!);
+        
+        // Always join the room to ensure backend has CurrentRoomId set
+        // (even if we think we're already in it, the backend state might be different)
         await _signalRService.sendJoin(
           userId: _appState.currentUserId!,
           roomId: widget.roomId!,
         );
-        // Load existing messages
+        
+        // Wait a bit for the join to complete on the backend
+        await Future.delayed(Duration(milliseconds: 200));
+        
+        // Set room in app state after successful join
+        _appState.setRoom(widget.roomId!);
+        
+        // Load existing messages after joining
         await _signalRService.sendShowMessages();
       }
 
@@ -234,7 +304,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    _signalRService.stop();
+    // Don't stop SignalR connection here - it's a singleton shared across screens
+    // The connection should persist across navigations
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();

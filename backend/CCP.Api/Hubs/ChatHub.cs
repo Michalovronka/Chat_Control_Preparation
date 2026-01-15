@@ -557,6 +557,58 @@ public class ChatHub : Hub, IClientChatContracts
         return Task.CompletedTask;
     }
 
+    public async Task SendBlock(SendBlockModel model)
+    {
+        try
+        {
+            var user = _userRepository.GetById(model.UserId);
+            if (user == null)
+            {
+                await Clients.Caller.SendAsync("Error", "User not found");
+                return;
+            }
+
+            // Initialize BlockedUsers if null
+            if (user.BlockedUsers == null)
+            {
+                user.BlockedUsers = new List<Guid>();
+            }
+
+            if (model.IsBlock)
+            {
+                // Add to blocked list if not already there
+                if (!user.BlockedUsers.Contains(model.BlockedUserId))
+                {
+                    user.BlockedUsers.Add(model.BlockedUserId);
+                    _userRepository.Update(user);
+                    Console.WriteLine($"[BLOCK] User {model.UserId} blocked user {model.BlockedUserId}");
+                }
+            }
+            else
+            {
+                // Remove from blocked list
+                if (user.BlockedUsers.Contains(model.BlockedUserId))
+                {
+                    user.BlockedUsers.Remove(model.BlockedUserId);
+                    _userRepository.Update(user);
+                    Console.WriteLine($"[UNBLOCK] User {model.UserId} unblocked user {model.BlockedUserId}");
+                }
+            }
+
+            // Send confirmation back to caller
+            await Clients.Caller.SendAsync("BlockUpdated", new
+            {
+                BlockedUserId = model.BlockedUserId.ToString(),
+                IsBlocked = model.IsBlock
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in SendBlock: {ex.Message}");
+            await Clients.Caller.SendAsync("Error", $"An error occurred while blocking/unblocking user: {ex.Message}");
+        }
+    }
+
     public async Task SendKick(SendKickModel model)
     {
         try

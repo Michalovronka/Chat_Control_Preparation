@@ -141,4 +141,26 @@ class UserService {
       return null;
     }
   }
+
+  // Get blocked users for a user
+  static Future<List<String>?> getBlockedUsers(String userId) async {
+    try {
+      final encodedUserId = Uri.encodeComponent(userId);
+      final response = await http.get(
+        Uri.parse('$baseUrl/$encodedUserId/blocked-users'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as List<dynamic>;
+        return result.map((id) => id.toString()).toList();
+      } else {
+        print('Failed to get blocked users: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      print('Error getting blocked users: $e');
+      return null;
+    }
+  }
 }

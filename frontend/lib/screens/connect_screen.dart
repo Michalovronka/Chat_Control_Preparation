@@ -31,11 +31,26 @@ class _ConnectScreenState extends State<ConnectScreen> {
     super.initState();
     _initializeUser();
     _setupSignalR();
+    _loadBlockedUsers();
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    if (_appState.currentUserId == null) return;
+    
+    try {
+      final blockedUsers = await UserService.getBlockedUsers(_appState.currentUserId!);
+      if (blockedUsers != null) {
+        _appState.setBlockedUsers(blockedUsers);
+      }
+    } catch (e) {
+      print('Error loading blocked users: $e');
+    }
   }
 
   @override
   void dispose() {
-    _signalRService.stop();
+    // Don't stop SignalR connection here - it's a singleton shared across screens
+    // The connection should persist across navigations
     super.dispose();
   }
 

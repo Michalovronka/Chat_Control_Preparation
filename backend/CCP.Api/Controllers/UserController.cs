@@ -173,6 +173,24 @@ public class UserController : ControllerBase
             UserState = user.UserState
         });
     }
+
+    [HttpGet("{id}/blocked-users")]
+    public IActionResult GetBlockedUsers(string id)
+    {
+        if (!Guid.TryParse(id, out var userId))
+        {
+            return BadRequest(new { Error = "Invalid user ID format" });
+        }
+
+        var user = _userRepository.GetById(userId);
+        if (user == null)
+        {
+            return NotFound(new { Error = "User not found" });
+        }
+
+        var blockedUsers = user.BlockedUsers ?? new List<Guid>();
+        return Ok(blockedUsers.Select(guid => guid.ToString()).ToList());
+    }
 }
 
 public class CreateUserRequest
