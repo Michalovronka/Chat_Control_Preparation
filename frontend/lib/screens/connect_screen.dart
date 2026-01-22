@@ -24,6 +24,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
   final SignalRService _signalRService = SignalRService();
   bool _isInitializing = true;
   bool _isLoadingRooms = true;
+  bool _signalRListenerSetUp = false;
   List<Map<String, dynamic>> _userRooms = [];
 
   @override
@@ -56,46 +57,66 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   Future<void> _setupSignalR() async {
     try {
-      // Set up listener for received invites (queries)
-      _signalRService.onReceiveQuery((data) {
-        print('[INVITE RECEIVED] Processing invite in connect_screen: $data');
-        final senderUserId = (data['SenderUserId'] ?? data['senderUserId'])?.toString();
-        final receiverUserId = (data['ReceiverUserId'] ?? data['receiverUserId'])?.toString();
-        final roomId = (data['RoomId'] ?? data['roomId'])?.toString();
-        
-        print('[INVITE RECEIVED] Parsed - Sender: $senderUserId, Receiver: $receiverUserId, Room: $roomId, CurrentUser: ${_appState.currentUserId}');
-        
-        // Check if this invite is for the current user
-        if (senderUserId != null && roomId != null && receiverUserId == _appState.currentUserId) {
-          print('[INVITE RECEIVED] Invite is for current user, fetching sender info...');
-          // Get sender's username and store the invite
-          UserService.getUser(senderUserId).then((user) {
-            if (user != null && mounted) {
-              final senderUserName = (user['UserName'] ?? user['userName'])?.toString() ?? 'Unknown User';
-              print('[INVITE RECEIVED] Adding invite to AppState - Sender: $senderUserName ($senderUserId), Room: $roomId');
-              _appState.addInvite(senderUserId, senderUserName, roomId);
-              setState(() {
-                // Trigger rebuild to show new invite
+      // Set up callback for UI updates when invites are received
+      // The global listener is automatically set up when SignalR starts
+      // This callback just handles UI updates (setState, snackbar)
+      if (!_signalRListenerSetUp) {
+        _signalRService.setInviteCallback((data) {
+          print('[INVITE UI] Updating UI for invite: $data');
+          if (mounted) {
+            setState(() {
+              // Trigger rebuild to show new invite
+            });
+            
+            final senderUserId = (data['SenderUserId'] ?? data['senderUserId'])?.toString();
+            if (senderUserId != null) {
+              // Get sender name for snackbar
+              UserService.getUser(senderUserId).then((user) {
+                if (user != null && mounted) {
+                  final senderUserName = (user['UserName'] ?? user['userName'])?.toString() ?? 'Unknown User';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Pozvánka od $senderUserName')),
+                  );
+                }
               });
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Pozvánka od $senderUserName')),
-              );
-              print('[INVITE RECEIVED] Invite successfully added and displayed');
-            } else {
-              print('[INVITE ERROR] Could not fetch sender user info or widget not mounted');
             }
-          });
-        } else {
-          print('[INVITE ERROR] Invite validation failed - Sender: $senderUserId, Room: $roomId, Receiver matches: ${receiverUserId == _appState.currentUserId}');
-        }
-      });
+          }
+        });
+        _signalRListenerSetUp = true;
+        print('[INVITE LISTENER] Invite callback set up for UI updates');
+      } else {
+        print('[INVITE LISTENER] Invite callback already set up, skipping');
+      }
 
-      // Connect to SignalR
+      // Connect to SignalR and register connection
+      // The listener is already set up above, so it will catch invites sent during registration
       if (_appState.currentUserId != null) {
-        await _signalRService.start();
-        // Register the connection so the user can receive invites
+        print('[INVITE SETUP] Setting up connection for user: ${_appState.currentUserId}');
+        
+        // Ensure connection is started
+        if (!_signalRService.isConnected) {
+          print('[INVITE SETUP] Starting SignalR connection...');
+          await _signalRService.start();
+          await Future.delayed(Duration(milliseconds: 500)); // Wait for connection to stabilize
+          print('[INVITE SETUP] SignalR connection started, state: ${_signalRService.isConnected}');
+        } else {
+          print('[INVITE SETUP] SignalR already connected');
+        }
+        
+        // Register the connection - this will trigger pending invites to be sent
+        // The listener above will catch them
+        print('[INVITE SETUP] Registering connection...');
         await _signalRService.registerConnection(_appState.currentUserId!);
+        
+        // Wait longer for any pending invites to be delivered
+        print('[INVITE SETUP] Waiting for pending invites to be delivered...');
+        await Future.delayed(Duration(milliseconds: 1000));
+        print('[INVITE SETUP] Setup complete. Current invites in AppState: ${_appState.receivedInvites.length}');
+        
+        // Force UI refresh to show any invites
+        if (mounted) {
+          setState(() {});
+        }
       }
     } catch (e) {
       print('Error setting up SignalR for invites: $e');
@@ -108,6 +129,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
     // Refresh rooms when screen becomes visible again
     if (!_isInitializing) {
       refreshRooms();
+      // Also ensure SignalR is set up when screen becomes visible
+      _setupSignalR();
+      // Refresh UI to show any invites that might have been added
+      setState(() {});
     }
   }
 
@@ -139,11 +164,18 @@ class _ConnectScreenState extends State<ConnectScreen> {
         await Future.delayed(Duration(milliseconds: 500));
       }
 
+      // Register connection to ensure ConnectionId is set
+      await _signalRService.registerConnection(_appState.currentUserId!);
+      await Future.delayed(Duration(milliseconds: 300));
+
       // Join the room (this will add room to user's JoinedRooms and user to room's JoinedUsers)
       await _signalRService.sendJoin(
         userId: _appState.currentUserId!,
         roomId: roomId,
       );
+
+      // Wait for the join to complete on the backend before navigating
+      await Future.delayed(Duration(milliseconds: 800));
 
       // Remove the invite
       _appState.removeInvite(senderUserId, roomId);
@@ -359,102 +391,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
                                   final senderUserId = invite['senderUserId']?.toString() ?? '';
                                   final senderUserName = invite['senderUserName']?.toString() ?? 'Unknown User';
                                   final roomId = invite['roomId']?.toString() ?? '';
-                                  return Container(
-                                    margin: EdgeInsets.symmetric(vertical: 4),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 12,
-                                          spreadRadius: 2,
-                                        ),
-                                      ],
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                                        child: Container(
-                                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(
-                                              color: Colors.white.withOpacity(0.08),
-                                              width: 1.5,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 18,
-                                                backgroundColor: Colors.white.withOpacity(0.1),
-                                                child: Icon(Icons.forum, color: Colors.white, size: 18),
-                                              ),
-                                              SizedBox(width: 10),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      'Pozvánka od $senderUserName',
-                                                      style: TextStyle(
-                                                        fontFamily: 'Jura',
-                                                        color: Colors.white,
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      roomId.length >= 8 ? '#${roomId.substring(0, 8)}' : roomId,
-                                                      style: TextStyle(
-                                                        fontFamily: 'Jura',
-                                                        color: Colors.white70,
-                                                        fontSize: 10,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              SizedBox(width: 8),
-                                              // Accept button
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green.withOpacity(0.3),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  border: Border.all(
-                                                    color: Colors.green.withOpacity(0.5),
-                                                    width: 1,
-                                                  ),
-                                                ),
-                                                child: IconButton(
-                                                  icon: Icon(Icons.check, color: Colors.white, size: 20),
-                                                  onPressed: () => _acceptInvite(senderUserId, roomId),
-                                                  tooltip: 'Přijmout',
-                                                ),
-                                              ),
-                                              SizedBox(width: 4),
-                                              // Decline button
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.red.withOpacity(0.3),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  border: Border.all(
-                                                    color: Colors.red.withOpacity(0.5),
-                                                    width: 1,
-                                                  ),
-                                                ),
-                                                child: IconButton(
-                                                  icon: Icon(Icons.close, color: Colors.white, size: 20),
-                                                  onPressed: () => _declineInvite(senderUserId, roomId),
-                                                  tooltip: 'Odmítnout',
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                  return _InviteTile(
+                                    senderUserId: senderUserId,
+                                    senderUserName: senderUserName,
+                                    roomId: roomId,
+                                    onAccept: () => _acceptInvite(senderUserId, roomId),
+                                    onDecline: () => _declineInvite(senderUserId, roomId),
                                   );
                                 }),
                               ),
@@ -506,6 +448,173 @@ class _ConnectScreenState extends State<ConnectScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InviteTile extends StatefulWidget {
+  final String senderUserId;
+  final String senderUserName;
+  final String roomId;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  const _InviteTile({
+    required this.senderUserId,
+    required this.senderUserName,
+    required this.roomId,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  @override
+  State<_InviteTile> createState() => _InviteTileState();
+}
+
+class _InviteTileState extends State<_InviteTile> {
+  String? _roomName;
+  bool _isLoadingRoomName = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoomName();
+  }
+
+  Future<void> _loadRoomName() async {
+    try {
+      final room = await RoomService.getRoom(widget.roomId);
+      if (room != null && mounted) {
+        setState(() {
+          _roomName = (room['roomName'] ?? room['RoomName'])?.toString() ?? 'Unknown Room';
+          _isLoadingRoomName = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _roomName = 'Unknown Room';
+          _isLoadingRoomName = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading room name for invite: $e');
+      if (mounted) {
+        setState(() {
+          _roomName = 'Unknown Room';
+          _isLoadingRoomName = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  child: Icon(Icons.forum, color: Colors.white, size: 18),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pozvánka od ${widget.senderUserName}',
+                        style: TextStyle(
+                          fontFamily: 'Jura',
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      _isLoadingRoomName
+                          ? SizedBox(
+                              height: 12,
+                              width: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white70,
+                              ),
+                            )
+                          : Text(
+                              _roomName ?? 'Unknown Room',
+                              style: TextStyle(
+                                fontFamily: 'Jura',
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 8),
+                // Accept button
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.green.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.check, color: Colors.white, size: 20),
+                    onPressed: widget.onAccept,
+                    tooltip: 'Přijmout',
+                  ),
+                ),
+                SizedBox(width: 4),
+                // Decline button
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.red.withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.close, color: Colors.white, size: 20),
+                    onPressed: widget.onDecline,
+                    tooltip: 'Odmítnout',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

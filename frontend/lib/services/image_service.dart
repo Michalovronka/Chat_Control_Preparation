@@ -1,9 +1,10 @@
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
+import '../config/api_config.dart';
 
 class ImageService {
-  static const String baseUrl = 'http://localhost:5202/api/image';
+  static String get baseUrl => ApiConfig.getApiUrl('image');
 
   // Upload image to server
   static Future<String?> uploadImage(XFile imageFile) async {
@@ -42,14 +43,22 @@ class ImageService {
 
   // Get full image URL
   static String getImageUrl(String imagePath) {
-    // If already a full URL, return as is
+    // If already a full URL, replace localhost/127.0.0.1 with platform-specific base URL
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      // Replace localhost/127.0.0.1 with platform-specific base URL for mobile compatibility
+      final uri = Uri.parse(imagePath);
+      if (uri.host == 'localhost' || uri.host == '127.0.0.1' || uri.host == '0.0.0.0') {
+        // Extract the path and reconstruct with platform-specific base URL
+        final path = uri.path;
+        return '${ApiConfig.baseUrl}$path${uri.hasQuery ? '?${uri.query}' : ''}';
+      }
+      // If it's already a proper URL (not localhost), return as is
       return imagePath;
     }
-    // Otherwise, construct full URL
+    // Otherwise, construct full URL from relative path
     if (imagePath.startsWith('/')) {
-      return 'http://localhost:5202$imagePath';
+      return '${ApiConfig.baseUrl}$imagePath';
     }
-    return 'http://localhost:5202/api/image/$imagePath';
+    return '${ApiConfig.getApiUrl('image')}/$imagePath';
   }
 }

@@ -12,15 +12,18 @@ public class ChatHub : Hub, IClientChatContracts
     private readonly IMessageRepository _messageRepository;
     private readonly IRoomRepository _roomRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IInviteRepository _inviteRepository;
 
     public ChatHub(
         IMessageRepository messageRepository,
         IRoomRepository roomRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        IInviteRepository inviteRepository)
     {
         _messageRepository = messageRepository;
         _roomRepository = roomRepository;
         _userRepository = userRepository;
+        _inviteRepository = inviteRepository;
     }
 
     public override async Task OnConnectedAsync()
@@ -347,17 +350,45 @@ public class ChatHub : Hub, IClientChatContracts
             return;
         }
 
+        // Always store the invite in the database
+        var invite = new InviteEntity
+        {
+            Id = Guid.NewGuid(),
+            SenderUserId = model.SenderUserId,
+            ReceiverUserId = model.ReceiverUserId,
+            RoomId = model.RoomId,
+            SentTime = DateTime.UtcNow,
+            IsDelivered = false
+        };
+        _inviteRepository.Add(invite);
+        Console.WriteLine($"[INVITE STORED] Invite stored in database: {invite.Id}");
+
         var receiveModel = new ReceiveQueryModel(model.SenderUserId, model.ReceiverUserId, model.RoomId);
         
-        // Send to the receiver
+        // Try to send to the receiver if they're online
         if (!string.IsNullOrEmpty(receiver.ConnectionId))
         {
-            await Clients.Client(receiver.ConnectionId).SendAsync("ReceiveQuery", receiveModel);
-            Console.WriteLine($"[INVITE RECEIVED] Sent to receiver: {model.ReceiverUserId}, ConnectionId: {receiver.ConnectionId}");
+            Console.WriteLine($"[INVITE ATTEMPT] Attempting to send invite to receiver: {model.ReceiverUserId}, ConnectionId: {receiver.ConnectionId}");
+            try
+            {
+                await Clients.Client(receiver.ConnectionId).SendAsync("ReceiveQuery", receiveModel);
+                _inviteRepository.MarkAsDelivered(invite.Id);
+                Console.WriteLine($"[INVITE DELIVERED] Successfully sent to receiver: {model.ReceiverUserId}, ConnectionId: {receiver.ConnectionId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[INVITE ERROR] Failed to send to receiver (ConnectionId may be stale): {ex.Message}");
+                Console.WriteLine($"[INVITE ERROR] Stack trace: {ex.StackTrace}");
+                // Clear the stale ConnectionId so the invite will be delivered on next RegisterConnection
+                receiver.ConnectionId = null;
+                _userRepository.Update(receiver);
+                Console.WriteLine($"[INVITE FIX] Cleared stale ConnectionId for receiver: {model.ReceiverUserId}. Invite will be delivered on next RegisterConnection.");
+                // Invite remains in database as undelivered, will be sent when user connects
+            }
         }
         else
         {
-            Console.WriteLine($"[INVITE ERROR] Receiver has no ConnectionId: {model.ReceiverUserId}");
+            Console.WriteLine($"[INVITE PENDING] Receiver has no ConnectionId, invite stored for later: {model.ReceiverUserId}");
         }
     }
 
@@ -509,38 +540,46 @@ public class ChatHub : Hub, IClientChatContracts
 
     public async Task SendShowMessages(SendShowMessagesModel model)
     {
-        var user = _userRepository.GetAll().FirstOrDefault(u => u.ConnectionId == Context.ConnectionId);
-        if (user == null || !user.CurrentRoomId.HasValue)
+        try
         {
-            await Clients.Caller.SendAsync("Error", "User not in a room");
-            return;
-        }
-
-        var messages = _messageRepository.GetMessagesByRoom(user.CurrentRoomId.Value);
-        // Send messages as objects to ensure proper JSON serialization
-        // Include username for each message by looking up the user
-        var messageObjects = messages.Select(m =>
-        {
-            var messageUser = _userRepository.GetById(m.UserId);
-            return new
+            var user = _userRepository.GetAll().FirstOrDefault(u => u.ConnectionId == Context.ConnectionId);
+            if (user == null || !user.CurrentRoomId.HasValue)
             {
-                UserId = m.UserId.ToString(),
-                UserName = messageUser?.UserName ?? $"User_{m.UserId.ToString().Substring(0, 8)}",
-                Content = m.Content,
-                IsImage = m.IsImage ? "true" : "false",
-                RoomId = m.RoomId.ToString(),
-                SentTime = m.SentTime.ToString("o") // ISO 8601 format
-            };
-        }).ToList();
+                await Clients.Caller.SendAsync("Error", "User not in a room");
+                return;
+            }
 
-        // Send messages via LoadMessages event
-        await Clients.Caller.SendAsync("LoadMessages", messageObjects);
-        
-        var receiveModel = new ReceiveShowMessagesModel(user.CurrentRoomId.Value);
-        await Clients.Caller.SendAsync("ReceiveShowMessages", receiveModel);
+            var messages = _messageRepository.GetMessagesByRoom(user.CurrentRoomId.Value);
+            // Send messages as objects to ensure proper JSON serialization
+            // Include username for each message by looking up the user
+            var messageObjects = messages.Select(m =>
+            {
+                var messageUser = _userRepository.GetById(m.UserId);
+                return new
+                {
+                    UserId = m.UserId.ToString(),
+                    UserName = messageUser?.UserName ?? $"User_{m.UserId.ToString().Substring(0, 8)}",
+                    Content = m.Content,
+                    IsImage = m.IsImage ? "true" : "false",
+                    RoomId = m.RoomId.ToString(),
+                    SentTime = m.SentTime.ToString("o") // ISO 8601 format
+                };
+            }).ToList();
+
+            // Send messages via LoadMessages event
+            await Clients.Caller.SendAsync("LoadMessages", messageObjects);
+
+            var receiveModel = new ReceiveShowMessagesModel(user.CurrentRoomId.Value);
+            await Clients.Caller.SendAsync("ReceiveShowMessages", receiveModel);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SendShowMessages] Error: {ex.Message}");
+            await Clients.Caller.SendAsync("Error", $"Failed to load messages: {ex.Message}");
+        }
     }
 
-    public Task RegisterConnection(RegisterConnectionModel model)
+    public async Task RegisterConnection(RegisterConnectionModel model)
     {
         var user = _userRepository.GetById(model.UserId);
         if (user != null)
@@ -549,12 +588,30 @@ public class ChatHub : Hub, IClientChatContracts
             user.LastTimeSeen = DateTime.UtcNow;
             _userRepository.Update(user);
             Console.WriteLine($"[CONNECTION REGISTERED] User: {model.UserId}, ConnectionId: {Context.ConnectionId}");
+
+            // Check for pending invites and send them
+            var pendingInvites = _inviteRepository.GetPendingInvitesForUser(model.UserId);
+            Console.WriteLine($"[INVITE CHECK] Found {pendingInvites.Count()} pending invites for user {model.UserId}");
+
+            foreach (var invite in pendingInvites)
+            {
+                try
+                {
+                    var receiveModel = new ReceiveQueryModel(invite.SenderUserId, invite.ReceiverUserId, invite.RoomId);
+                    await Clients.Client(Context.ConnectionId).SendAsync("ReceiveQuery", receiveModel);
+                    _inviteRepository.MarkAsDelivered(invite.Id);
+                    Console.WriteLine($"[INVITE DELIVERED] Sent pending invite {invite.Id} to user {model.UserId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[INVITE ERROR] Failed to send pending invite {invite.Id}: {ex.Message}");
+                }
+            }
         }
         else
         {
             Console.WriteLine($"[CONNECTION ERROR] User not found: {model.UserId}");
         }
-        return Task.CompletedTask;
     }
 
     public async Task SendBlock(SendBlockModel model)

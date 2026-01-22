@@ -231,24 +231,143 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       if (widget.roomId != null && _appState.currentUserId != null) {
+        // Set up ReceiveJoin listener BEFORE joining to ensure we catch the confirmation
+        bool joinConfirmed = false;
+        _signalRService.onReceiveJoin((data) {
+          final receivedRoomId = (data['RoomId'] ?? data['roomId'])?.toString();
+          final receivedUserId = (data['UserId'] ?? data['userId'])?.toString();
+          print('[JOIN CONFIRMATION] Received ReceiveJoin - RoomId: $receivedRoomId, UserId: $receivedUserId, CurrentUser: ${_appState.currentUserId}');
+          
+          // Check if this is for our user and our room
+          final normalizedReceivedRoomId = receivedRoomId?.replaceAll('#', '').trim().toLowerCase() ?? '';
+          final normalizedCurrentRoomId = widget.roomId!.replaceAll('#', '').trim().toLowerCase();
+          final normalizedReceivedUserId = receivedUserId?.replaceAll('#', '').trim().toLowerCase() ?? '';
+          final normalizedCurrentUserId = _appState.currentUserId!.replaceAll('#', '').trim().toLowerCase();
+          
+          if (normalizedReceivedRoomId == normalizedCurrentRoomId && 
+              normalizedReceivedUserId == normalizedCurrentUserId) {
+            print('[JOIN CONFIRMATION] Join confirmed for room: $receivedRoomId, user: $receivedUserId');
+            joinConfirmed = true;
+          } else {
+            print('[JOIN CONFIRMATION] Join event received but not for this user/room - Room: $normalizedReceivedRoomId vs $normalizedCurrentRoomId, User: $normalizedReceivedUserId vs $normalizedCurrentUserId');
+          }
+        });
+        
         // Register connection first to ensure ConnectionId is set
         await _signalRService.registerConnection(_appState.currentUserId!);
         
+        // Wait longer after registration to ensure connection is fully stable
+        await Future.delayed(Duration(milliseconds: 500));
+        
+        // Verify connection is still active before proceeding
+        if (!_signalRService.isConnected) {
+          print('Connection lost after registration, attempting to reconnect...');
+          await _signalRService.start();
+          await _signalRService.registerConnection(_appState.currentUserId!);
+          await Future.delayed(Duration(milliseconds: 500));
+        }
+        
         // Always join the room to ensure backend has CurrentRoomId set
-        // (even if we think we're already in it, the backend state might be different)
+        print('[JOIN] Sending join request for room: ${widget.roomId}');
         await _signalRService.sendJoin(
           userId: _appState.currentUserId!,
           roomId: widget.roomId!,
         );
         
-        // Wait a bit for the join to complete on the backend
-        await Future.delayed(Duration(milliseconds: 200));
+        // Wait for join confirmation with timeout
+        print('[JOIN] Waiting for join confirmation...');
+        int joinWaitRetries = 0;
+        const maxJoinWaitRetries = 50; // 5 seconds max wait
+        while (!joinConfirmed && joinWaitRetries < maxJoinWaitRetries) {
+          await Future.delayed(Duration(milliseconds: 100));
+          joinWaitRetries++;
+        }
+        
+        if (joinConfirmed) {
+          print('[JOIN] Join confirmed successfully after ${joinWaitRetries * 100}ms');
+        } else {
+          print('[JOIN] Join confirmation timeout after ${joinWaitRetries * 100}ms, proceeding anyway...');
+        }
+        
+        // Wait longer for backend to fully process the join and connection to stabilize
+        print('[JOIN] Waiting for connection to stabilize after join...');
+        await Future.delayed(Duration(milliseconds: 1500));
+        
+        // Verify connection is still stable after join - with multiple checks
+        int stabilityChecks = 0;
+        const maxStabilityChecks = 10;
+        while (!_signalRService.isConnected && stabilityChecks < maxStabilityChecks) {
+          print('[JOIN] Connection not stable, checking... (attempt ${stabilityChecks + 1})');
+          await Future.delayed(Duration(milliseconds: 200));
+          stabilityChecks++;
+        }
+        
+        if (!_signalRService.isConnected) {
+          print('[JOIN] Connection lost after join, attempting to reconnect...');
+          try {
+            await _signalRService.start();
+            await Future.delayed(Duration(milliseconds: 500));
+            await _signalRService.registerConnection(_appState.currentUserId!);
+            await Future.delayed(Duration(milliseconds: 500));
+            await _signalRService.sendJoin(
+              userId: _appState.currentUserId!,
+              roomId: widget.roomId!,
+            );
+            await Future.delayed(Duration(milliseconds: 1500));
+          } catch (e) {
+            print('[JOIN] Error during reconnection: $e');
+          }
+        }
+        
+        // Additional stability wait before loading messages
+        print('[JOIN] Final stability check before loading messages...');
+        await Future.delayed(Duration(milliseconds: 500));
+        
+        // Ensure connection is truly stable before proceeding
+        if (!_signalRService.isConnected) {
+          print('[JOIN] Connection still not stable, waiting for reconnection...');
+          int waitRetries = 0;
+          while (!_signalRService.isConnected && waitRetries < 20) {
+            await Future.delayed(Duration(milliseconds: 200));
+            waitRetries++;
+          }
+        }
         
         // Set room in app state after successful join
         _appState.setRoom(widget.roomId!);
         
-        // Load existing messages after joining
-        await _signalRService.sendShowMessages();
+        // Load existing messages after joining - with retry logic built in
+        print('[MESSAGES] Attempting to load messages...');
+        print('[MESSAGES] Connection state before loading: ${_signalRService.isConnected}');
+        
+        // Wait a bit more to ensure connection is truly ready
+        await Future.delayed(Duration(milliseconds: 300));
+        
+        try {
+          await _signalRService.sendShowMessages();
+          print('[MESSAGES] Messages loaded successfully');
+        } catch (e) {
+          print('[MESSAGES] Failed to load messages initially: $e');
+          // Wait longer before retry to allow connection to stabilize
+          await Future.delayed(Duration(milliseconds: 2000));
+          try {
+            print('[MESSAGES] Retrying message load...');
+            // Ensure connection is still good before retry
+            if (!_signalRService.isConnected) {
+              print('[MESSAGES] Connection lost, reconnecting before retry...');
+              await _signalRService.start();
+              await Future.delayed(Duration(milliseconds: 500));
+              await _signalRService.registerConnection(_appState.currentUserId!);
+              await Future.delayed(Duration(milliseconds: 500));
+            }
+            await _signalRService.sendShowMessages();
+            print('[MESSAGES] Messages loaded successfully on retry');
+          } catch (retryError) {
+            print('[MESSAGES] Failed to load messages on retry: $retryError');
+            // Don't fail the entire initialization if messages fail to load
+            // They can be loaded later or the user can refresh
+          }
+        }
       }
 
       setState(() {
