@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 class RoomService {
-  static const String baseUrl = 'http://localhost:5202/api/room';
+  static String get baseUrl => ApiConfig.getApiUrl('room');
 
   // Create a new room
   static Future<Map<String, dynamic>?> createRoom({String? roomId, String? roomName, String? password}) async {

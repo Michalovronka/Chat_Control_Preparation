@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:5202/api/auth';
+  static String get baseUrl => ApiConfig.getApiUrl('auth');
 
   // Register a new user
   static Future<Map<String, dynamic>?> register(String username, String password) async {

@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'app_state.dart';
+import '../config/api_config.dart';
 
 class UserService {
-  static const String baseUrl = 'http://localhost:5202/api/user';
+  static String get baseUrl => ApiConfig.getApiUrl('user');
 
   // Create a new user
   static Future<Map<String, dynamic>?> createUser({String? userId, String? userName}) async {

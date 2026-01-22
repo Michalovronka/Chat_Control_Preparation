@@ -14,6 +14,7 @@ namespace CCP.Data
             CreateUsersTable(connection);
             CreateRoomsTable(connection);
             CreateMessagesTable(connection);
+            CreateInvitesTable(connection);
         }
 
         private static void CreateUsersTable(SqliteConnection connection)
@@ -105,6 +106,25 @@ namespace CCP.Data
                 SentTime TEXT,
 
                 FOREIGN KEY (UserId) REFERENCES Users(Id),
+                FOREIGN KEY (RoomId) REFERENCES Rooms(Id)
+            );";
+
+            using var cmd = new SqliteCommand(sql, connection);
+            cmd.ExecuteNonQuery();
+        }
+
+        private static void CreateInvitesTable(SqliteConnection connection)
+        {
+            var sql = @"
+            CREATE TABLE IF NOT EXISTS Invites (
+                Id TEXT PRIMARY KEY,
+                SenderUserId TEXT NOT NULL,
+                ReceiverUserId TEXT NOT NULL,
+                RoomId TEXT NOT NULL,
+                SentTime TEXT NOT NULL,
+                IsDelivered INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (SenderUserId) REFERENCES Users(Id),
+                FOREIGN KEY (ReceiverUserId) REFERENCES Users(Id),
                 FOREIGN KEY (RoomId) REFERENCES Rooms(Id)
             );";
 

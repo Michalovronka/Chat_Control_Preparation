@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../screens/sign_in_screen.dart';
 import '../services/app_state.dart';
+import '../services/signalr_service.dart';
 
 class LogoutButton extends StatelessWidget {
   const LogoutButton({super.key});
@@ -24,10 +25,18 @@ class LogoutButton extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
           child: InkWell(
-            onTap: () {
+            onTap: () async {
+              // Stop SignalR so we never reuse the same connection across users.
+              // Reusing causes "Invocation canceled... connection being closed" when
+              // loading messages after login (e.g. Lukas → Pavel → Lukas, then open room).
+              try {
+                await SignalRService().stop();
+              } catch (e) {
+                // Ignore stop errors
+              }
               // Clear authentication state
               AppState().clear();
-              
+              if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => SignInScreen()),

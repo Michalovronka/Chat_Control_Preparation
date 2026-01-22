@@ -8,7 +8,6 @@ import '../services/room_service.dart';
 import '../services/app_state.dart';
 import '../services/signalr_service.dart';
 import 'connect_screen.dart';
-import 'chat_screen.dart';
 
 class ChatOverviewScreen extends StatefulWidget {
   final String chatName;

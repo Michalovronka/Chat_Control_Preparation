@@ -1,33 +1,53 @@
 import 'package:signalr_netcore/signalr_client.dart';
+import '../config/api_config.dart';
+import 'app_state.dart';
+import 'user_service.dart';
 
 class SignalRService {
   // Singleton pattern
   static final SignalRService _instance = SignalRService._internal();
   factory SignalRService() => _instance;
 
-  // Use HTTP for development (easier for mobile/web)
-  static const String baseUrl = 'http://localhost:5202';
-  static const String hubPath = '/chathub';
+  static String get baseUrl => ApiConfig.baseUrl;
+  static String get hubPath => '/chathub';
   
   late HubConnection _connection;
+  bool _globalInviteListenerSetUp = false;
+  Function(Map<String, dynamic>)? _inviteCallback;
   
   HubConnection get connection => _connection;
   
   SignalRService._internal() {
     _connection = HubConnectionBuilder()
-        .withUrl('$baseUrl$hubPath')
+        .withUrl('${ApiConfig.getUrl('chathub')}')
         .withAutomaticReconnect()
         .build();
   }
   
   Future<void> start() async {
     try {
+      // Set up global invite listener BEFORE starting connection
+      // This ensures it's ready as soon as connection is established
+      _setupGlobalInviteListener();
+      
+      // If reconnecting, stop first so we get a clean connection (e.g. after logout).
+      // Otherwise we'd skip start() and stay in Reconnecting, causing invoke failures.
+      if (_connection.state == HubConnectionState.Reconnecting) {
+        print('SignalR was Reconnecting, stopping first for clean start');
+        try {
+          await _connection.stop();
+        } catch (_) {}
+      }
+      
       // Only start if not already connected
       if (_connection.state == HubConnectionState.Disconnected) {
         await _connection.start();
         print('SignalR Connected');
+        print('[INVITE LISTENER] Global invite listener should be active');
       } else {
         print('SignalR already connected or connecting (state: ${_connection.state})');
+        // Ensure global listener is set up even if already connected
+        _setupGlobalInviteListener();
       }
     } catch (e) {
       print('SignalR Connection Error: $e');
@@ -39,25 +59,74 @@ class SignalRService {
   
   // Ensure connection is ready before invoking methods
   Future<void> ensureConnected() async {
+    // If already connected, verify it's still stable
     if (_connection.state == HubConnectionState.Connected) {
-      return;
+      // Give a small delay to ensure connection is stable
+      await Future.delayed(Duration(milliseconds: 100));
+      // Double-check state after delay
+      if (_connection.state == HubConnectionState.Connected) {
+        return;
+      }
     }
     
+    // If reconnecting, wait for it to complete
+    if (_connection.state == HubConnectionState.Reconnecting) {
+      print('Connection is reconnecting, waiting...');
+      int reconnectingRetries = 0;
+      const maxReconnectingRetries = 50; // 5 seconds max wait for reconnection
+      while (_connection.state == HubConnectionState.Reconnecting && reconnectingRetries < maxReconnectingRetries) {
+        await Future.delayed(Duration(milliseconds: 100));
+        reconnectingRetries++;
+      }
+      
+      // If reconnection succeeded, we're done
+      if (_connection.state == HubConnectionState.Connected) {
+        await Future.delayed(Duration(milliseconds: 100)); // Stability check
+        return;
+      }
+    }
+    
+    // If disconnected, start the connection
     if (_connection.state == HubConnectionState.Disconnected) {
       await start();
     }
     
     // Wait for connection to be established (with timeout)
     int retries = 0;
-    const maxRetries = 20; // 2 seconds max wait
+    const maxRetries = 50; // 5 seconds max wait
     while (_connection.state != HubConnectionState.Connected && retries < maxRetries) {
       await Future.delayed(Duration(milliseconds: 100));
       retries++;
+      
+      // If connection is reconnecting, wait for it
+      if (_connection.state == HubConnectionState.Reconnecting) {
+        print('Connection entered reconnecting state during wait, waiting for reconnect...');
+        int reconnectingRetries = 0;
+        while (_connection.state == HubConnectionState.Reconnecting && reconnectingRetries < 30) {
+          await Future.delayed(Duration(milliseconds: 100));
+          reconnectingRetries++;
+        }
+        // Continue the main loop to check if connected now
+        continue;
+      }
+      
+      // If connection failed, try to restart
+      if (_connection.state == HubConnectionState.Disconnected && retries > 5) {
+        print('Connection lost during wait, attempting to restart...');
+        try {
+          await start();
+        } catch (e) {
+          print('Failed to restart connection: $e');
+        }
+      }
     }
     
     if (_connection.state != HubConnectionState.Connected) {
       throw Exception('Failed to establish SignalR connection. State: ${_connection.state}');
     }
+    
+    // Additional stability check - wait a bit more to ensure connection is fully ready
+    await Future.delayed(Duration(milliseconds: 150));
   }
   
   Future<void> stop() async {
@@ -128,6 +197,9 @@ class SignalRService {
     bool permanentLeave = false, // true for leave button, false for back arrow
   }) async {
     try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
       await _connection.invoke('SendLeave', args: [
         {
           'UserId': userId,
@@ -149,6 +221,17 @@ class SignalRService {
     required String roomId,
   }) async {
     try {
+      // Ensure connection is ready before invoking
+      await ensureConnected();
+      
+      // Double-check connection state right before invoke
+      if (_connection.state != HubConnectionState.Connected) {
+        print('Connection not ready before sendKick, state: ${_connection.state}');
+        await ensureConnected();
+      }
+      
+      print('Sending sendKick, connection state: ${_connection.state}');
+      
       await _connection.invoke('SendKick', args: [
         {
           'KickerUserId': kickerUserId,
@@ -156,8 +239,11 @@ class SignalRService {
           'RoomId': roomId,
         }
       ]);
+      
+      print('sendKick completed successfully');
     } catch (e) {
       print('Error kicking user: $e');
+      print('Connection state during error: ${_connection.state}');
       rethrow;
     }
   }
@@ -222,19 +308,97 @@ class SignalRService {
 
   // Request to show messages for current room
   Future<void> sendShowMessages() async {
-    try {
-      // Ensure connection is ready before invoking
-      await ensureConnected();
-      
-      // SendShowMessagesModel expects IReadOnlyList<MessageDto> Message, but we send empty list to request
-      await _connection.invoke('SendShowMessages', args: [
-        {
-          'Message': [],
+    int retryCount = 0;
+    const maxRetries = 5; // Increased retries
+    
+    while (retryCount < maxRetries) {
+      try {
+        // Ensure connection is ready before invoking
+        await ensureConnected();
+        
+        // Double-check connection state right before invoke
+        if (_connection.state != HubConnectionState.Connected) {
+          print('Connection not ready before sendShowMessages, state: ${_connection.state}');
+          await ensureConnected();
         }
-      ]);
-    } catch (e) {
-      print('Error requesting messages: $e');
-      rethrow;
+        
+        // Additional stability check - wait longer and verify connection is truly stable
+        await Future.delayed(Duration(milliseconds: 500)); // Increased delay
+        if (_connection.state != HubConnectionState.Connected) {
+          print('Connection became unstable during wait, state: ${_connection.state}');
+          // Wait for reconnection if it's reconnecting
+          if (_connection.state == HubConnectionState.Reconnecting) {
+            print('Connection is reconnecting, waiting...');
+            int reconnectWait = 0;
+            while (_connection.state == HubConnectionState.Reconnecting && reconnectWait < 30) {
+              await Future.delayed(Duration(milliseconds: 200));
+              reconnectWait++;
+            }
+            if (_connection.state != HubConnectionState.Connected) {
+              print('Reconnection failed or timed out, attempting to reconnect...');
+              await start();
+              await Future.delayed(Duration(milliseconds: 500));
+            }
+          } else {
+            await ensureConnected();
+          }
+        }
+        
+        // Final check before invoke
+        if (_connection.state != HubConnectionState.Connected) {
+          throw Exception('Connection not stable: ${_connection.state}');
+        }
+        
+        print('Sending sendShowMessages (attempt ${retryCount + 1}), connection state: ${_connection.state}');
+        
+        // SendShowMessagesModel expects IReadOnlyList<MessageDto> Message, but we send empty list to request
+        await _connection.invoke('SendShowMessages', args: [
+          {
+            'Message': [],
+          }
+        ]);
+        
+        print('sendShowMessages completed successfully');
+        return; // Success, exit retry loop
+      } catch (e) {
+        retryCount++;
+        print('Error requesting messages (attempt $retryCount/$maxRetries): $e');
+        print('Connection state during error: ${_connection.state}');
+        
+        if (retryCount >= maxRetries) {
+          print('Max retries reached for sendShowMessages');
+          rethrow;
+        }
+        
+        // If connection is reconnecting or disconnected, wait longer and try again
+        if (_connection.state == HubConnectionState.Reconnecting || 
+            _connection.state == HubConnectionState.Disconnected) {
+          print('Connection unstable, waiting before retry...');
+          await Future.delayed(Duration(milliseconds: 1000)); // Wait longer
+          
+          // Try to reconnect if disconnected
+          if (_connection.state == HubConnectionState.Disconnected) {
+            try {
+              print('Attempting to reconnect...');
+              await start();
+              await Future.delayed(Duration(milliseconds: 500));
+            } catch (reconnectError) {
+              print('Failed to reconnect: $reconnectError');
+            }
+          } else if (_connection.state == HubConnectionState.Reconnecting) {
+            // Wait for reconnection to complete
+            print('Waiting for reconnection to complete...');
+            int waitCount = 0;
+            while (_connection.state == HubConnectionState.Reconnecting && waitCount < 20) {
+              await Future.delayed(Duration(milliseconds: 200));
+              waitCount++;
+            }
+          }
+        } else {
+          // For other errors, wait a bit before retrying
+          await Future.delayed(Duration(milliseconds: 500));
+        }
+      }
     }
   }
 
@@ -316,17 +480,89 @@ class SignalRService {
   }
 
   // Listen to receive query
-  void onReceiveQuery(Function(Map<String, dynamic>) callback) {
+  // Set up global invite listener that processes invites automatically
+  void _setupGlobalInviteListener() {
+    if (_globalInviteListenerSetUp) {
+      print('[INVITE LISTENER] Global invite listener already set up');
+      return;
+    }
+    
+    print('[INVITE LISTENER] Setting up global ReceiveQuery listener');
     _connection.on('ReceiveQuery', (arguments) {
-      print('[INVITE RECEIVED] Raw SignalR arguments: $arguments');
+      print('[INVITE RECEIVED] Raw SignalR arguments received: $arguments');
+      print('[INVITE RECEIVED] Arguments type: ${arguments.runtimeType}, length: ${arguments?.length ?? 0}');
       if (arguments != null && arguments.isNotEmpty) {
-        final data = arguments[0] as Map<String, dynamic>;
-        print('[INVITE RECEIVED] Parsed data - Sender: ${data['SenderUserId'] ?? data['senderUserId']}, Receiver: ${data['ReceiverUserId'] ?? data['receiverUserId']}, Room: ${data['RoomId'] ?? data['roomId']}');
-        callback(data);
+        try {
+          final data = arguments[0] as Map<String, dynamic>;
+          print('[INVITE RECEIVED] Parsed data - Sender: ${data['SenderUserId'] ?? data['senderUserId']}, Receiver: ${data['ReceiverUserId'] ?? data['receiverUserId']}, Room: ${data['RoomId'] ?? data['roomId']}');
+          print('[INVITE RECEIVED] Full data map: $data');
+          
+          // Process invite automatically using AppState
+          final appState = AppState();
+          final senderUserId = (data['SenderUserId'] ?? data['senderUserId'])?.toString();
+          final receiverUserId = (data['ReceiverUserId'] ?? data['receiverUserId'])?.toString();
+          final roomId = (data['RoomId'] ?? data['roomId'])?.toString();
+          
+          print('[INVITE RECEIVED] Processing - Sender: $senderUserId, Receiver: $receiverUserId, Room: $roomId, CurrentUser: ${appState.currentUserId}');
+          
+          // Normalize IDs for comparison
+          final normalizedReceiverId = receiverUserId?.toString().trim().toLowerCase() ?? '';
+          final normalizedCurrentUserId = appState.currentUserId?.toString().trim().toLowerCase() ?? '';
+          
+          print('[INVITE RECEIVED] Normalized comparison - receiver: "$normalizedReceiverId", current: "$normalizedCurrentUserId", match: ${normalizedReceiverId == normalizedCurrentUserId}');
+          
+          // Check if this invite is for the current user
+          if (senderUserId != null && roomId != null && normalizedReceiverId == normalizedCurrentUserId && normalizedReceiverId.isNotEmpty) {
+            print('[INVITE RECEIVED] Invite is for current user, fetching sender info...');
+            // Get sender's username and store the invite
+            UserService.getUser(senderUserId).then((user) {
+              if (user != null) {
+                final senderUserName = (user['UserName'] ?? user['userName'])?.toString() ?? 'Unknown User';
+                print('[INVITE RECEIVED] Adding invite to AppState - Sender: $senderUserName ($senderUserId), Room: $roomId');
+                appState.addInvite(senderUserId, senderUserName, roomId);
+                print('[INVITE RECEIVED] Invite successfully added to AppState');
+                
+                // Call custom callback if set (for UI updates)
+                if (_inviteCallback != null) {
+                  try {
+                    _inviteCallback!(data);
+                  } catch (e) {
+                    print('[INVITE ERROR] Error in invite callback: $e');
+                  }
+                }
+              } else {
+                print('[INVITE ERROR] Could not fetch sender user info');
+              }
+            }).catchError((e) {
+              print('[INVITE ERROR] Error fetching sender user: $e');
+            });
+          } else {
+            print('[INVITE ERROR] Invite validation failed - Sender: $senderUserId, Room: $roomId, Receiver matches: ${normalizedReceiverId == normalizedCurrentUserId}');
+          }
+        } catch (e) {
+          print('[INVITE ERROR] Error parsing ReceiveQuery arguments: $e');
+          print('[INVITE ERROR] Arguments[0] type: ${arguments[0].runtimeType}, value: ${arguments[0]}');
+        }
       } else {
         print('[INVITE ERROR] Received query with empty or null arguments');
       }
     });
+    _globalInviteListenerSetUp = true;
+    print('[INVITE LISTENER] Global ReceiveQuery listener set up successfully');
+  }
+
+  // Set a callback for when invites are received (for UI updates)
+  void setInviteCallback(Function(Map<String, dynamic>)? callback) {
+    _inviteCallback = callback;
+  }
+
+  // Legacy method for backward compatibility - now uses global listener
+  void onReceiveQuery(Function(Map<String, dynamic>) callback) {
+    // Set up global listener if not already set up
+    _setupGlobalInviteListener();
+    
+    // Set the callback for UI updates
+    setInviteCallback(callback);
   }
 
   // Register connection - sets ConnectionId for the user
@@ -336,14 +572,22 @@ class SignalRService {
       await ensureConnected();
       
       print('[CONNECTION REGISTER] Registering connection for user: $userId');
+      print('[CONNECTION REGISTER] Connection state before invoke: ${_connection.state}');
+      
       await _connection.invoke('RegisterConnection', args: [
         {
           'UserId': userId,
         }
       ]);
+      
+      // Wait a bit after registration to ensure connection is stable
+      await Future.delayed(Duration(milliseconds: 200));
+      
       print('[CONNECTION REGISTER] Successfully registered connection');
+      print('[CONNECTION REGISTER] Connection state after registration: ${_connection.state}');
     } catch (e) {
       print('[CONNECTION ERROR] Error registering connection: $e');
+      print('[CONNECTION ERROR] Connection state: ${_connection.state}');
       rethrow;
     }
   }

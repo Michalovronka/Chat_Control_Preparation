@@ -4,6 +4,7 @@ import 'sign_up_screen.dart';
 import 'connect_screen.dart';
 import '../services/auth_service.dart';
 import '../services/app_state.dart';
+import '../services/signalr_service.dart';
 
 class SignInScreen
     extends StatefulWidget {
@@ -275,6 +276,18 @@ class _SignInScreenState
           
           if (userId.isNotEmpty && userName.isNotEmpty) {
             appState.setUser(userId, userName);
+            
+            // Ensure SignalR is started and global invite listener is set up
+            try {
+              final signalRService = SignalRService();
+              if (!signalRService.isConnected) {
+                await signalRService.start();
+                await Future.delayed(Duration(milliseconds: 300));
+              }
+            } catch (e) {
+              print('Error starting SignalR after login: $e');
+              // Continue anyway, SignalR will be set up in ConnectScreen
+            }
             
             if (mounted) {
               Navigator.pushReplacement(

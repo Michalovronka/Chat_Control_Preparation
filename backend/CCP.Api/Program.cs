@@ -53,6 +53,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<IMessageRepository, MessageRepository>();
 builder.Services.AddSingleton<IRoomRepository, RoomRepository>();
 builder.Services.AddSingleton<IUserRepository, UserRepository>();
+builder.Services.AddSingleton<IInviteRepository, InviteRepository>();
 
 var app = builder.Build();
 

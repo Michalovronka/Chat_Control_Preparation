@@ -7,7 +7,6 @@ namespace CCP.Api.Controllers;
 public class ImageController : ControllerBase
 {
     private const string ImagesDirectory = "uploads/images";
-    private const string BaseUrl = "http://localhost:5202/api/image";
 
     public ImageController()
     {
@@ -53,9 +52,9 @@ public class ImageController : ControllerBase
                 await file.CopyToAsync(stream);
             }
 
-            // Return the URL path (relative to API base)
-            var imageUrl = $"{BaseUrl}/{fileName}";
-            return Ok(new { ImagePath = imageUrl, FileName = fileName });
+            // Return relative path - client will construct full URL based on platform
+            var imagePath = $"/api/image/{fileName}";
+            return Ok(new { ImagePath = imagePath, FileName = fileName });
         }
         catch (Exception ex)
         {
